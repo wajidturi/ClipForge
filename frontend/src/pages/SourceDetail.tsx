@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { Badge, Button, Card, CardHeader, Progress } from '@/components/ui'
 import { TimelineGraph } from '@/features/sources/TimelineGraph'
 import { TranscriptView } from '@/features/sources/TranscriptView'
@@ -78,6 +78,18 @@ export function SourceDetail() {
     [offset],
   )
   const onTime = () => mediaRef.current && setNow(mediaRef.current.currentTime + offset)
+  // `?t=<video seconds>` (from a pick's "Watch") positions the player once it is ready.
+  const [params] = useSearchParams()
+  const jumped = useRef(false)
+  const onLoaded = () => {
+    const t0 = Number(params.get('t'))
+    const m = mediaRef.current
+    if (m && !jumped.current && params.has('t') && Number.isFinite(t0)) {
+      jumped.current = true
+      m.currentTime = Math.max(0, t0 - offset)
+      setNow(t0)
+    }
+  }
 
   if (source.isError)
     return <p className="px-8 py-8 text-sm text-danger">{t('analysis.notFound')}</p>
@@ -154,6 +166,7 @@ export function SourceDetail() {
                 preload="metadata"
                 src={mediaUrl(video.id)}
                 onTimeUpdate={onTime}
+                onLoadedMetadata={onLoaded}
                 className="max-h-96 w-full rounded-md bg-black"
               />
             ) : audio ? (
@@ -165,6 +178,7 @@ export function SourceDetail() {
                 preload="metadata"
                 src={mediaUrl(audio.id)}
                 onTimeUpdate={onTime}
+                onLoadedMetadata={onLoaded}
                 className="w-full"
               />
             ) : (

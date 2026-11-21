@@ -296,10 +296,200 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Runs */
+    get: operations['list_runs_api_v1_runs_get']
+    put?: never
+    /** Create Run */
+    post: operations['create_run_api_v1_runs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/runs/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Run */
+    get: operations['get_run_api_v1_runs__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Short */
+    get: operations['get_short_api_v1_shorts__short_id__get']
+    put?: never
+    post?: never
+    /**
+     * Drop Short
+     * @description Drop a pick (kept for history; its time range becomes free again).
+     */
+    delete: operations['drop_short_api_v1_shorts__short_id__delete']
+    options?: never
+    head?: never
+    /**
+     * Edit Short
+     * @description Edit a pick before rendering. Times snap to whole sentences.
+     */
+    patch: operations['edit_short_api_v1_shorts__short_id__patch']
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/preview.jpg': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Short Preview */
+    get: operations['short_preview_api_v1_shorts__short_id__preview_jpg_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/ai/status': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Ai Status */
+    get: operations['ai_status_api_v1_ai_status_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/render/options': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Render Options */
+    get: operations['render_options_api_v1_render_options_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/render': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Render Short */
+    post: operations['render_short_api_v1_shorts__short_id__render_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/runs/{run_id}/render': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Render Run */
+    post: operations['render_run_api_v1_runs__run_id__render_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AIStatusOut */
+    AIStatusOut: {
+      /** Provider */
+      provider: string
+      /** Model */
+      model: string | null
+      /** Ok */
+      ok: boolean
+      /** Detail */
+      detail: string
+      /** Models */
+      models: string[]
+    }
+    /** ActiveVersion */
+    ActiveVersion: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Version No */
+      version_no: number
+      /** Origin */
+      origin: string
+      /** Layout */
+      layout: string | null
+      /** Style */
+      style: string | null
+      /** Mp4 Asset Id */
+      mp4_asset_id: string | null
+      /** Cover Asset Id */
+      cover_asset_id: string | null
+      /** Extra Assets */
+      extra_assets?: {
+        [key: string]: string
+      }
+      /** Qc Verdict */
+      qc_verdict: string | null
+      /** Qc Reasons */
+      qc_reasons?: string[]
+      /** Render Ms */
+      render_ms: number | null
+      /** Duration S */
+      duration_s: number | null
+    }
     /** AnalyzeRequest */
     AnalyzeRequest: {
       /**
@@ -371,6 +561,28 @@ export interface components {
       start?: string | null
       /** End */
       end?: string | null
+    }
+    /** CandidateOut */
+    CandidateOut: {
+      /** Rank */
+      rank: number
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string
+      /** Start S */
+      start_s: number
+      /** End S */
+      end_s: number
+      /** Score */
+      score: number
+      /** Tags */
+      tags: string[]
+      /** Head Text */
+      head_text: string | null
+      /** Tail Text */
+      tail_text: string | null
     }
     /** CheckOut */
     CheckOut: {
@@ -523,6 +735,13 @@ export interface components {
       /** Label */
       label: string | null
     }
+    /** OptionOut */
+    OptionOut: {
+      /** Id */
+      id: string
+      /** Label */
+      label: string
+    }
     /**
      * Platform
      * @enum {string}
@@ -549,6 +768,168 @@ export interface components {
       /** Example */
       example: string
     }
+    /** RenderOptions */
+    RenderOptions: {
+      /** Styles */
+      styles: components['schemas']['OptionOut'][]
+      /** Layouts */
+      layouts: components['schemas']['OptionOut'][]
+      /** Aspects */
+      aspects: components['schemas']['OptionOut'][]
+      /** Encoder */
+      encoder: string
+    }
+    /** RenderQueued */
+    RenderQueued: {
+      /** Job Ids */
+      job_ids: string[]
+    }
+    /** RenderRequest */
+    RenderRequest: {
+      /**
+       * Style
+       * @description caption style id
+       */
+      style?: string | null
+      /** Layout */
+      layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
+      /** Aspects */
+      aspects?: ('4:5' | '1:1')[] | null
+    }
+    /** RunCreate */
+    RunCreate: {
+      /** Source Ids */
+      source_ids: string[]
+      /**
+       * N
+       * @description how many Shorts to pick
+       * @default 5
+       */
+      n?: number
+      /**
+       * Pick Mode
+       * @default smart
+       * @enum {string}
+       */
+      pick_mode?: 'free' | 'smart' | 'deep'
+      /**
+       * Topic
+       * @description e.g. a game or a name
+       */
+      topic?: string | null
+      /** Ai Model */
+      ai_model?: string | null
+    }
+    /** RunDetail */
+    RunDetail: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      status: components['schemas']['RunStatus']
+      /** Params */
+      params: {
+        [key: string]: unknown
+      }
+      /** Ai Provider */
+      ai_provider: string | null
+      /** Ai Model */
+      ai_model: string | null
+      /** Ai Usage */
+      ai_usage: {
+        [key: string]: unknown
+      }
+      /** Result */
+      result: {
+        [key: string]: unknown
+      }
+      /** Error */
+      error: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Started At */
+      started_at: string | null
+      /** Finished At */
+      finished_at: string | null
+      /** Shorts */
+      shorts: components['schemas']['ShortOut'][]
+      /** Candidates */
+      candidates: components['schemas']['CandidateOut'][]
+      /** Job Id */
+      job_id: string | null
+    }
+    /** RunOut */
+    RunOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      status: components['schemas']['RunStatus']
+      /** Params */
+      params: {
+        [key: string]: unknown
+      }
+      /** Ai Provider */
+      ai_provider: string | null
+      /** Ai Model */
+      ai_model: string | null
+      /** Ai Usage */
+      ai_usage: {
+        [key: string]: unknown
+      }
+      /** Result */
+      result: {
+        [key: string]: unknown
+      }
+      /** Error */
+      error: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Started At */
+      started_at: string | null
+      /** Finished At */
+      finished_at: string | null
+    }
+    /** RunRenderRequest */
+    RunRenderRequest: {
+      /**
+       * Style
+       * @description caption style id
+       */
+      style?: string | null
+      /** Layout */
+      layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
+      /** Aspects */
+      aspects?: ('4:5' | '1:1')[] | null
+      /**
+       * Short Ids
+       * @description default: all picks
+       */
+      short_ids?: string[] | null
+    }
+    /**
+     * RunStatus
+     * @enum {string}
+     */
+    RunStatus: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
     /** SegmentOut */
     SegmentOut: {
       /** Idx */
@@ -566,6 +947,152 @@ export interface components {
         [key: string]: unknown
       }[]
     }
+    /** ShortDetail */
+    ShortDetail: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Run Id */
+      run_id: string | null
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string
+      /** Format */
+      format: string
+      /** Hook */
+      hook: string | null
+      /** Title */
+      title: string | null
+      /** Hashtags */
+      hashtags: string[]
+      /** Keywords */
+      keywords: string[]
+      /** Credit */
+      credit: string | null
+      /** Score */
+      score: number | null
+      /** Ai Reason */
+      ai_reason: string | null
+      status: components['schemas']['ShortStatus']
+      /** Parts */
+      parts?: components['schemas']['ShortPartOut'][]
+      /**
+       * Has Preview
+       * @default false
+       */
+      has_preview?: boolean
+      active?: components['schemas']['ActiveVersion'] | null
+      /** Render Job Id */
+      render_job_id?: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+      /** Versions */
+      versions?: components['schemas']['VersionOut'][]
+    }
+    /** ShortOut */
+    ShortOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Run Id */
+      run_id: string | null
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string
+      /** Format */
+      format: string
+      /** Hook */
+      hook: string | null
+      /** Title */
+      title: string | null
+      /** Hashtags */
+      hashtags: string[]
+      /** Keywords */
+      keywords: string[]
+      /** Credit */
+      credit: string | null
+      /** Score */
+      score: number | null
+      /** Ai Reason */
+      ai_reason: string | null
+      status: components['schemas']['ShortStatus']
+      /** Parts */
+      parts?: components['schemas']['ShortPartOut'][]
+      /**
+       * Has Preview
+       * @default false
+       */
+      has_preview?: boolean
+      active?: components['schemas']['ActiveVersion'] | null
+      /** Render Job Id */
+      render_job_id?: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string
+    }
+    /** ShortPartOut */
+    ShortPartOut: {
+      /** Idx */
+      idx: number
+      /** Start S */
+      start_s: number
+      /** End S */
+      end_s: number
+      /** Label */
+      label: string | null
+    }
+    /** ShortPatch */
+    ShortPatch: {
+      /** Hook */
+      hook?: string | null
+      /** Title */
+      title?: string | null
+      /** Hashtags */
+      hashtags?: string[] | null
+      /** Keywords */
+      keywords?: string[] | null
+      /** Start S */
+      start_s?: number | null
+      /** End S */
+      end_s?: number | null
+    }
+    /**
+     * ShortStatus
+     * @enum {string}
+     */
+    ShortStatus:
+      | 'picked'
+      | 'rendering'
+      | 'review'
+      | 'approved'
+      | 'rejected'
+      | 'scheduled'
+      | 'published'
+      | 'failed'
+      | 'dropped'
     /** SourceCreate */
     SourceCreate: {
       /**
@@ -804,6 +1331,51 @@ export interface components {
       input?: unknown
       /** Context */
       ctx?: Record<string, never>
+    }
+    /** VersionOut */
+    VersionOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Version No */
+      version_no: number
+      /** Origin */
+      origin: string
+      /** Layout */
+      layout: string | null
+      /** Style */
+      style: string | null
+      /** Mp4 Asset Id */
+      mp4_asset_id: string | null
+      /** Cover Asset Id */
+      cover_asset_id: string | null
+      /** Extra Assets */
+      extra_assets?: {
+        [key: string]: string
+      }
+      /** Qc Verdict */
+      qc_verdict: string | null
+      /** Qc Reasons */
+      qc_reasons?: string[]
+      /** Render Ms */
+      render_ms: number | null
+      /** Duration S */
+      duration_s: number | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
+      /** Qc Checks */
+      qc_checks?: {
+        [key: string]: unknown
+      }
+      /** Settings */
+      settings?: {
+        [key: string]: unknown
+      }
     }
   }
   responses: never
@@ -1385,6 +1957,335 @@ export interface operations {
           [name: string]: unknown
         }
         content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_runs_api_v1_runs_get: {
+    parameters: {
+      query?: {
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunOut'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  create_run_api_v1_runs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RunCreate']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_run_api_v1_runs__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_short_api_v1_shorts__short_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  drop_short_api_v1_shorts__short_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  edit_short_api_v1_shorts__short_id__patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ShortPatch']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  short_preview_api_v1_shorts__short_id__preview_jpg_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  ai_status_api_v1_ai_status_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AIStatusOut']
+        }
+      }
+    }
+  }
+  render_options_api_v1_render_options_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RenderOptions']
+        }
+      }
+    }
+  }
+  render_short_api_v1_shorts__short_id__render_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RenderRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RenderQueued']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  render_run_api_v1_runs__run_id__render_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RunRenderRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RenderQueued']
+        }
       }
       /** @description Validation Error */
       422: {

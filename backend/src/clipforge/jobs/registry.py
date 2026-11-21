@@ -110,4 +110,4 @@ def load_handlers() -> None:
     if _loaded:
         return
     _loaded = True
-    from clipforge.jobs.handlers import ingest, system  # noqa: F401
+    from clipforge.jobs.handlers import ingest, render, runs, system  # noqa: F401

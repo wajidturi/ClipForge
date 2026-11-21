@@ -21,6 +21,18 @@ export type TranscriptSegment = components['schemas']['SegmentOut']
 export type Timeline = components['schemas']['TimelineOut']
 export type TimelineMarker = components['schemas']['Marker']
 export type AnalyzeOptions = components['schemas']['AnalyzeRequest']
+export type Run = components['schemas']['RunOut']
+export type RunDetail = components['schemas']['RunDetail']
+export type RunCreate = components['schemas']['RunCreate']
+export type ShortPick = components['schemas']['ShortOut']
+export type ShortPatch = components['schemas']['ShortPatch']
+export type AIStatus = components['schemas']['AIStatusOut']
+export type PickMode = RunCreate['pick_mode']
+export type ActiveVersion = components['schemas']['ActiveVersion']
+export type RenderOptions = components['schemas']['RenderOptions']
+export type RenderRequest = components['schemas']['RenderRequest']
+export type Aspect = NonNullable<RenderRequest['aspects']>[number]
+export type Layout = NonNullable<RenderRequest['layout']>
 
 export const mediaUrl = (assetId: string) => `/api/v1/media/${assetId}`
 

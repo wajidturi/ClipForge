@@ -8,7 +8,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from clipforge.db.enums import AssetKind, JobStatus, Platform, SourceStatus
+from clipforge.db.enums import (
+    AssetKind,
+    JobStatus,
+    Platform,
+    RunStatus,
+    ShortStatus,
+    SourceStatus,
+)
 
 
 class HealthOut(BaseModel):
@@ -231,6 +238,163 @@ class AnalyzeRequest(BaseModel):
     vision: bool | None = Field(default=None, description="analyse the picture (default: setting)")
     banners: bool | None = Field(default=None, description="read on-screen banners (slow)")
     force_transcribe: bool = False
+
+
+# ------------------------------------------------------------------ runs & picks
+class RunCreate(BaseModel):
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    n: int = Field(default=5, ge=1, le=20, description="how many Shorts to pick")
+    pick_mode: Literal["free", "smart", "deep"] = "smart"
+    topic: str | None = Field(default=None, max_length=200, description="e.g. a game or a name")
+    ai_model: str | None = Field(default=None, max_length=100)
+
+
+class RunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: RunStatus
+    params: dict[str, Any]
+    ai_provider: str | None
+    ai_model: str | None
+    ai_usage: dict[str, Any]
+    result: dict[str, Any]
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class ShortPartOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    idx: int
+    start_s: float
+    end_s: float
+    label: str | None
+
+
+class ActiveVersion(BaseModel):
+    id: uuid.UUID
+    version_no: int
+    origin: str
+    layout: str | None
+    style: str | None
+    mp4_asset_id: uuid.UUID | None
+    cover_asset_id: uuid.UUID | None
+    extra_assets: dict[str, uuid.UUID] = Field(default_factory=dict)
+    qc_verdict: str | None
+    qc_reasons: list[str] = Field(default_factory=list)
+    render_ms: int | None
+    duration_s: float | None
+
+
+class ShortOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    run_id: uuid.UUID | None
+    source_id: uuid.UUID
+    format: str
+    hook: str | None
+    title: str | None
+    hashtags: list[str]
+    keywords: list[str]
+    credit: str | None
+    score: float | None
+    ai_reason: str | None
+    status: ShortStatus
+    parts: list[ShortPartOut] = Field(default_factory=list)
+    has_preview: bool = False
+    active: ActiveVersion | None = None
+    render_job_id: uuid.UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class VersionOut(ActiveVersion):
+    created_at: datetime
+    qc_checks: dict[str, Any] = Field(default_factory=dict)
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
+class ShortDetail(ShortOut):
+    versions: list[VersionOut] = Field(default_factory=list)
+
+
+class RenderRequest(BaseModel):
+    style: str | None = Field(default=None, description="caption style id")
+    layout: Literal["auto", "crop", "stack", "bubble", "full"] | None = None
+    aspects: list[Literal["4:5", "1:1"]] | None = None
+
+
+class RunRenderRequest(RenderRequest):
+    short_ids: list[uuid.UUID] | None = Field(default=None, description="default: all picks")
+
+
+class RenderQueued(BaseModel):
+    job_ids: list[uuid.UUID]
+
+
+class OptionOut(BaseModel):
+    id: str
+    label: str
+
+
+class RenderOptions(BaseModel):
+    styles: list[OptionOut]
+    layouts: list[OptionOut]
+    aspects: list[OptionOut]
+    encoder: str
+
+
+class ShortEvent(BaseModel):
+    type: Literal["short.updated"] = "short.updated"
+    id: uuid.UUID
+    run_id: uuid.UUID | None
+    status: ShortStatus
+
+
+class CandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    rank: int
+    source_id: uuid.UUID
+    start_s: float
+    end_s: float
+    score: float
+    tags: list[str]
+    head_text: str | None
+    tail_text: str | None
+
+
+class RunDetail(RunOut):
+    shorts: list[ShortOut]
+    candidates: list[CandidateOut]
+    job_id: uuid.UUID | None
+
+
+class RunEvent(BaseModel):
+    type: Literal["run.updated"] = "run.updated"
+    run: RunOut
+
+
+class ShortPatch(BaseModel):
+    hook: str | None = Field(default=None, max_length=120)
+    title: str | None = Field(default=None, max_length=200)
+    hashtags: list[str] | None = None
+    keywords: list[str] | None = None
+    start_s: float | None = Field(default=None, ge=0)
+    end_s: float | None = Field(default=None, ge=0)
+
+
+class AIStatusOut(BaseModel):
+    provider: str
+    model: str | None
+    ok: bool
+    detail: str
+    models: list[str]
 
 
 class PlatformOut(BaseModel):

@@ -18,7 +18,7 @@ export type NavItem = { to: string; key: string; icon: LucideIcon; phase?: numbe
 
 export const NAV: NavItem[] = [
   { to: '/', key: 'dashboard', icon: Gauge },
-  { to: '/create', key: 'create', icon: Plus, phase: 6 },
+  { to: '/create', key: 'create', icon: Plus },
   { to: '/shorts', key: 'library', icon: Film, phase: 6 },
   { to: '/review', key: 'review', icon: Inbox, phase: 6 },
   { to: '/sources', key: 'sources', icon: LibraryBig },

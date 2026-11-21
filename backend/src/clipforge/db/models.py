@@ -234,6 +234,8 @@ class Run(IdMixin, TimestampMixin, Base):
     ai_provider: Mapped[str | None] = mapped_column(String(40))
     ai_model: Mapped[str | None] = mapped_column(String(80))
     ai_usage: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    # Outcome details: warnings, rejected picks with reasons, callback pairs...
+    result: Mapped[dict[str, Any]] = mapped_column(default=dict)
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
     error: Mapped[str | None] = mapped_column(Text)

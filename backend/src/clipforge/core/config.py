@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     chat_spike_min_per_min: float = Field(default=15.0, ge=0)
     loud_rise_db: float = Field(default=8.0, gt=0)
 
+    # Moment selection (Phase 4)
+    ai_provider: Literal["ollama", "none"] = "ollama"
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "qwen3.5:4b"
+    ai_timeout_s: float = Field(default=300, gt=0)
+    candidates_k: int = Field(default=30, ge=5, le=120)
+
     # Where the built frontend lives (served by the API in production)
     frontend_dist: Path = Path(__file__).resolve().parents[4] / "frontend" / "dist"
 

@@ -1,0 +1,202 @@
+import { Bot, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link, useNavigate } from 'react-router'
+import { Badge, Button, Card, CardHeader } from '@/components/ui'
+import type { PickMode } from '@/lib/api/client'
+import { useAIStatus, useCreateRun, useRuns } from '@/lib/runs'
+import { useSources } from '@/lib/sources'
+import { cn, formatClock } from '@/lib/utils'
+import { PageHeader } from './Dashboard'
+
+const MODES: PickMode[] = ['smart', 'deep', 'free']
+
+function AIStatusLine() {
+  const ai = useAIStatus()
+  if (!ai.data) return null
+  const Icon = ai.data.ok ? CheckCircle2 : XCircle
+  return (
+    <p className={cn('flex items-center gap-2 text-xs', ai.data.ok ? 'text-ok' : 'text-warn')}>
+      <Icon size={14} aria-hidden />
+      {ai.data.detail}
+    </p>
+  )
+}
+
+export function Create() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const sources = useSources()
+  const runs = useRuns()
+  const create = useCreateRun()
+  const ready = (sources.data?.items ?? []).filter((s) => s.status === 'ready')
+  const [picked, setPicked] = useState<string[]>([])
+  const [n, setN] = useState(5)
+  const [mode, setMode] = useState<PickMode>('smart')
+  const [topic, setTopic] = useState('')
+
+  const toggle = (id: string) =>
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    create.mutate(
+      { source_ids: picked, n, pick_mode: mode, topic: topic.trim() || null },
+      { onSuccess: (run) => navigate(`/runs/${run.id}`) },
+    )
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl px-8 py-8">
+      <PageHeader title={t('create.title')} subtitle={t('create.subtitle')} />
+      <form onSubmit={submit} className="grid gap-6">
+        <Card>
+          <CardHeader
+            title={t('create.sources', { n: picked.length })}
+            action={
+              ready.length > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-accent hover:underline"
+                  onClick={() => setPicked(picked.length ? [] : ready.map((s) => s.id))}
+                >
+                  {picked.length ? t('create.none') : t('create.all')}
+                </button>
+              )
+            }
+          />
+          {ready.length === 0 ? (
+            <p className="px-5 py-6 text-sm text-muted">
+              {t('create.noSources')}{' '}
+              <Link to="/sources" className="text-accent hover:underline">
+                {t('nav.sources')}
+              </Link>
+            </p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {ready.map((s) => (
+                <li key={s.id}>
+                  <label className="flex cursor-pointer items-center gap-3 px-5 py-3 text-sm hover:bg-surface-2">
+                    <input
+                      type="checkbox"
+                      checked={picked.includes(s.id)}
+                      onChange={() => toggle(s.id)}
+                      className="size-4 accent-accent"
+                    />
+                    <span className="min-w-0 flex-1 truncate">{s.title ?? s.url}</span>
+                    <span className="text-xs text-muted">
+                      {[s.channel_name, formatClock(s.duration_s)].filter(Boolean).join(' · ')}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="space-y-5 p-5">
+          <div>
+            <p className="mb-2 text-sm font-medium">{t('create.mode')}</p>
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup">
+              {MODES.map((m) => (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === m}
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={cn(
+                    'rounded-lg border p-3 text-left text-sm transition',
+                    mode === m ? 'border-accent bg-accent/8' : 'border-border hover:bg-surface-2',
+                  )}
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    {m === 'free' ? (
+                      <Sparkles size={14} aria-hidden />
+                    ) : (
+                      <Bot size={14} aria-hidden />
+                    )}
+                    {t(`create.modes.${m}.name`)}
+                  </span>
+                  <span className="mt-1 block text-xs text-muted">
+                    {t(`create.modes.${m}.help`)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {mode !== 'free' && (
+              <div className="mt-2">
+                <AIStatusLine />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-6">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">{t('create.count')}</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={n}
+                onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                className="h-9 w-24 rounded-lg border border-border bg-surface-2 px-3"
+              />
+            </label>
+            <label className="min-w-60 flex-1 text-sm">
+              <span className="mb-1 block font-medium">{t('create.topic')}</span>
+              <input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder={t('create.topicPh')}
+                maxLength={200}
+                className="h-9 w-full rounded-lg border border-border bg-surface-2 px-3"
+              />
+            </label>
+          </div>
+          {create.error && (
+            <p role="alert" className="text-sm text-danger">
+              {create.error.message}
+            </p>
+          )}
+          <Button type="submit" disabled={!picked.length || create.isPending}>
+            {create.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />}
+            {t('create.start', { n })}
+          </Button>
+        </Card>
+      </form>
+
+      {(runs.data?.length ?? 0) > 0 && (
+        <Card className="mt-6">
+          <CardHeader title={t('create.recent')} />
+          <ul className="divide-y divide-border text-sm">
+            {runs.data!.map((r) => (
+              <li key={r.id}>
+                <Link
+                  to={`/runs/${r.id}`}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-surface-2"
+                >
+                  <span className="flex-1">
+                    {t('create.runLine', {
+                      n: Number(r.params.n),
+                      mode: t(`create.modes.${String(r.params.pick_mode)}.name`),
+                    })}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {new Date(r.created_at).toLocaleString()}
+                  </span>
+                  <Badge
+                    tone={
+                      r.status === 'succeeded' ? 'ok' : r.status === 'failed' ? 'danger' : 'info'
+                    }
+                  >
+                    {t(`runs.status.${r.status}`)}
+                  </Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  )
+}

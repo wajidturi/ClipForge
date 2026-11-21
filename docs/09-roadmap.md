@@ -8,8 +8,8 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 | 1 | Foundation & dev environment | 0 | **done** |
 | 2 | Ingestion | 1 | **done** |
 | 3 | Transcription & signals | 2 | **done** |
-| 4 | Moment selection (no-AI + AI) | 3 | 1 wk |
-| 5 | Rendering engine core + QC | 4 | 2–2.5 wk |
+| 4 | Moment selection (no-AI + AI) | 3 | **done** (Ollama; Claude provider pending a key) |
+| 5 | Rendering engine core + QC | 4 | **core done** (see docs/pipeline/render.md for open items) |
 | 6 | Web app: dashboard, library, review, studio, onboarding | 1 (API), 5 | 2 wk |
 | 7 | Creators, discovery & live | 3, 6 | 1.5 wk |
 | 8 | Formats, FX, voice, translation, branding | 5, 6 | 1.5–2 wk |

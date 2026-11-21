@@ -20,10 +20,18 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
-from clipforge.api.schemas import JobEvent, JobOut, SourceEvent, SourceOut
+from clipforge.api.schemas import (
+    JobEvent,
+    JobOut,
+    RunEvent,
+    RunOut,
+    ShortEvent,
+    SourceEvent,
+    SourceOut,
+)
 from clipforge.core.logging import get_logger
 from clipforge.db.base import utcnow
-from clipforge.db.models import Job, Source
+from clipforge.db.models import Job, Run, Short, Source
 from clipforge.db.session import get_sessionmaker
 
 log = get_logger(__name__)
@@ -40,6 +48,8 @@ def default_watches() -> list[Watch]:
     return [
         Watch(Job, lambda r: JobEvent(job=JobOut.model_validate(r))),
         Watch(Source, lambda r: SourceEvent(source=SourceOut.model_validate(r))),
+        Watch(Run, lambda r: RunEvent(run=RunOut.model_validate(r))),
+        Watch(Short, lambda r: ShortEvent(id=r.id, run_id=r.run_id, status=r.status)),
     ]
 
 

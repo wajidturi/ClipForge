@@ -128,8 +128,10 @@ def run_ffmpeg(
     on_progress: ProgressFn | None = None,
     is_cancelled: Callable[[], bool] | None = None,
     timeout_s: float | None = None,
+    cwd: Path | None = None,
 ) -> None:
-    """Run ffmpeg with `args` (without the executable). Progress is 0..100 of `duration_s`."""
+    """Run ffmpeg with `args` (without the executable). Progress is 0..100 of `duration_s`.
+    `cwd` lets filters reference files by bare name (no Windows drive-letter escaping)."""
     cmd = [
         _exe("ffmpeg"),
         "-hide_banner",
@@ -147,6 +149,7 @@ def run_ffmpeg(
         stderr=subprocess.PIPE,
         text=True,
         errors="replace",
+        cwd=cwd,
     )
     stderr_tail: list[str] = []
 
