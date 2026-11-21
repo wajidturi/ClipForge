@@ -1,0 +1,155 @@
+{
+  "app": { "name": "ClipForge" },
+  "nav": {
+    "dashboard": "Dashboard",
+    "create": "Create",
+    "library": "Shorts",
+    "review": "Review",
+    "sources": "Sources",
+    "creators": "Creators",
+    "live": "Live",
+    "schedule": "Schedule",
+    "brand": "Brand",
+    "insights": "Insights",
+    "settings": "Settings"
+  },
+  "conn": {
+    "open": "Connected",
+    "connecting": "Connecting…",
+    "closed": "Offline – reconnecting"
+  },
+  "theme": { "toggle": "Toggle theme" },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "System status and background jobs.",
+    "system": "System",
+    "jobs": "Background jobs",
+    "jobsEmpty": "No jobs yet. Run a self-test to check that workers are processing jobs.",
+    "selftest": "Run self-test",
+    "noWorkers": "Queued jobs wait for a worker. Start one with: clipforge dev"
+  },
+  "system": {
+    "gpu": "GPU",
+    "noGpu": "None (CPU mode)",
+    "ram": "Memory",
+    "disk": "Free disk",
+    "ffmpeg": "FFmpeg",
+    "database": "Database",
+    "missing": "Missing",
+    "allGood": "Ready",
+    "needsAttention": "Needs attention",
+    "lightMode": "Light mode will be used on this machine"
+  },
+  "job": {
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Done",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "attempt": "Attempt {{n}} of {{max}}",
+    "cancelling": "Cancelling…"
+  },
+  "sources": {
+    "title": "Sources",
+    "subtitle": "Long videos and streams that Shorts are cut from. Add a link or upload a file.",
+    "library": "Library ({{n}})",
+    "search": "Search title or channel",
+    "empty": "No sources yet. Paste a video link above or upload a file.",
+    "noMatch": "Nothing matches your search.",
+    "uploaded": "Uploaded file",
+    "otherSite": "Other site",
+    "add": {
+      "link": "Link",
+      "file": "Upload file",
+      "url": "Video link",
+      "urlPh": "Paste a link: YouTube, Twitch VOD, Kick, TikTok, X…",
+      "submit": "Add",
+      "drop": "Drop a video or audio file here",
+      "choose": "Choose file",
+      "uploading": "Uploading… {{pct}}%",
+      "partOnly": "Only part of the video",
+      "start": "Start time",
+      "end": "End time",
+      "startPh": "Start, e.g. 1:00:00",
+      "endPh": "End, e.g. 1:30:00",
+      "timeHelp": "Leave end empty for “until the end”.",
+      "added": "Added. Download started.",
+      "already": "This video is already in your library.",
+      "supported": "Supported:"
+    },
+    "status": {
+      "new": "Waiting",
+      "downloading": "Downloading",
+      "analyzing": "Analyzing",
+      "ready": "Ready",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    },
+    "actions": {
+      "details": "Details",
+      "retry": "Retry",
+      "delete": "Delete",
+      "confirm": "Delete this source and its files?",
+      "yesDelete": "Delete",
+      "keep": "Keep"
+    },
+    "detail": {
+      "length": "Length",
+      "window": "Part used",
+      "whole": "Whole video",
+      "audio": "Audio file",
+      "chapters": "Chapters",
+      "open": "Open original"
+    }
+  },
+  "timeline": {
+    "aria": "Timeline: heat and signals over time. Click to jump there.",
+    "layer": {
+      "loud": "Loudness",
+      "chat": "Chat speed",
+      "motion": "Motion",
+      "replay": "Most replayed"
+    }
+  },
+  "transcript": {
+    "title": "Transcript",
+    "search": "Search the transcript",
+    "hotOnly": "Only hot (heat ≥ {{n}})",
+    "follow": "Follow playback",
+    "count": "{{shown}} of {{total}} sentences",
+    "heat": "Heat {{n}}",
+    "words": "words",
+    "pending": "No transcript yet. It appears here when the analysis is done (or run “Analyse” on the right)."
+  },
+  "analysis": {
+    "title": "Analysis",
+    "back": "All sources",
+    "notFound": "This source does not exist (it may have been deleted).",
+    "noMedia": "No media file yet.",
+    "none": "Not analysed yet.",
+    "rerun": "Analyse again",
+    "run": "Analyse",
+    "opt": {
+      "vision": "Analyse the picture (motion, faces, cuts)",
+      "banners": "Read on-screen banners (slow)",
+      "force": "Transcribe again"
+    },
+    "step": {
+      "transcribe": "Transcript",
+      "loudness": "Loudness",
+      "chat": "Chat replay",
+      "clips": "Viewer clips",
+      "replay": "Most replayed",
+      "vision": "Picture"
+    }
+  },
+  "placeholder": {
+    "title": "{{page}}",
+    "body": "This area is built in Phase {{phase}} of the roadmap."
+  },
+  "error": { "generic": "Something went wrong", "retry": "Try again" }
+}
