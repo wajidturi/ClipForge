@@ -32,6 +32,7 @@ from clipforge.db.enums import (
     VersionStatus,
 )
 from clipforge.db.models import (
+    EditRequest,
     MediaAsset,
     QcReport,
     Segment,
@@ -48,13 +49,19 @@ from clipforge.pipeline.render.edl import Edl, build_edl, caption_words
 from clipforge.pipeline.render.effects import measure_loudness, pick_peaks
 from clipforge.pipeline.signals import vision as vision_sig
 from clipforge.pipeline.transcription.sentences import Word
-from clipforge.services import segments
+from clipforge.services import segments, settings_store
 
 log = get_logger(__name__)
 
 PAD_S = 2.0
 ASPECTS = {"4:5": (1080, 1350, AssetKind.aspect_4x5), "1:1": (1080, 1080, AssetKind.aspect_1x1)}
-DEFAULTS: dict[str, Any] = {"style": captions.DEFAULT_STYLE, "layout": "auto", "aspects": []}
+
+
+def defaults() -> dict[str, Any]:
+    """Render options used when a request leaves them out (Settings -> Rendering)."""
+    s = settings_store.effective()
+    style = s.render_style if s.render_style in captions.STYLES else captions.DEFAULT_STYLE
+    return {"style": style, "layout": s.render_layout, "aspects": list(s.render_aspects)}
 
 
 class _Ctx:
@@ -111,6 +118,7 @@ def _load(short_id: uuid.UUID) -> dict[str, Any]:
             or 0
         ) + 1
         data = json.loads((settings.resolved_data_dir / tr.words_path).read_text(encoding="utf-8"))
+        prev = s.get(ShortVersion, short.active_version_id) if short.active_version_id else None
         return {
             "short": {
                 "id": short.id,
@@ -125,7 +133,30 @@ def _load(short_id: uuid.UUID) -> dict[str, Any]:
             "sentences": sentences,
             "next_no": next_no,
             "words": [Word(*w) for w in data["words"]],
+            "caption_overrides": dict(prev.caption_overrides or {}) if prev else {},
         }
+
+
+def word_key(start: float) -> str:
+    """Stable id of a transcript word: its start time in the source, 2 decimals."""
+    return f"{start:.2f}"
+
+
+def apply_caption_overrides(words: list[Word], overrides: dict[str, str]) -> list[Word]:
+    """Studio caption fixes: replace a word's text, or hide it with an empty string.
+
+    Only the captions change; the audio cut (EDL) still uses the original words.
+    """
+    if not overrides:
+        return words
+    out: list[Word] = []
+    for w in words:
+        new = overrides.get(word_key(w.start))
+        if new is None:
+            out.append(w)
+        elif new.strip():
+            out.append(Word(w.start, w.end, " " + new.strip(), w.prob))
+    return out
 
 
 def _set_status(short_id: uuid.UUID, status: ShortStatus, **extra: Any) -> None:
@@ -199,7 +230,9 @@ def render_version(
     peaks_src = ([info["hottest"]] if info["hottest"] is not None else []) + info["loud"]
     plan.zoom_peaks = pick_peaks([edl.map_clamped(t) for t in peaks_src], edl.duration)
 
-    words = caption_words(info["words"], edl)
+    words = caption_words(
+        apply_caption_overrides(info["words"], opts.get("caption_overrides") or {}), edl
+    )
     style = opts.get("style", captions.DEFAULT_STYLE)
     ass_text = captions.build_ass(
         words,
@@ -343,7 +376,7 @@ def _save(
             version_no=version_no,
             origin=origin,
             settings={
-                **opts,
+                **{k: v for k, v in opts.items() if k != "caption_overrides"},
                 "layout_used": r["layout"],
                 "cam": r["cam"],
                 "zoom_peaks": r["zoom_peaks"],
@@ -351,6 +384,7 @@ def _save(
                 "range": [start, end],
             },
             edl=r["edl"].to_json(),
+            caption_overrides=opts.get("caption_overrides") or {},
             render_ms=r["render_ms"],
             status=VersionStatus.ready,
         )
@@ -374,17 +408,23 @@ def _save(
                 reasons=q.reasons,
             )
         )
+        if opts.get("edit_id"):  # an applied AI/manual edit points at its result
+            er = s.get(EditRequest, uuid.UUID(str(opts["edit_id"])))
+            if er is not None:
+                er.result_version_id = ver.id
         s.commit()
         return ver.id
 
 
 def render(job: JobContext, short_id: uuid.UUID, options: dict[str, Any]) -> dict[str, Any]:
-    opts = {**DEFAULTS, **{k: v for k, v in options.items() if v is not None}}
+    opts = {**defaults(), **{k: v for k, v in options.items() if v is not None}}
     if opts["style"] not in captions.STYLES:
         raise PermanentJobError(f"unknown caption style '{opts['style']}'")
     if opts["layout"] not in reframe.LAYOUTS:
         raise PermanentJobError(f"unknown layout '{opts['layout']}'")
     info = _load(short_id)
+    if "caption_overrides" not in opts:  # keep earlier caption fixes on a re-render
+        opts["caption_overrides"] = info["caption_overrides"]
     _set_status(short_id, ShortStatus.rendering)
     root = get_settings().resolved_data_dir / "renders" / str(short_id)
     start, end = info["start"], info["end"]

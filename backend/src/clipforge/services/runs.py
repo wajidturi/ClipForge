@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 
 from clipforge.ai.base import AIError, Usage
 from clipforge.ai.registry import make_provider
-from clipforge.core.config import get_settings
 from clipforge.core.logging import get_logger
 from clipforge.db.base import utcnow
 from clipforge.db.enums import RunStatus, ShortFormat, ShortStatus, SourceStatus
@@ -47,6 +46,7 @@ from clipforge.pipeline.selection.callbacks import find_callbacks
 from clipforge.pipeline.selection.heuristic import heuristic_picks
 from clipforge.pipeline.selection.validate import validate
 from clipforge.pipeline.selection.windows import build_candidates
+from clipforge.services import settings_store, versions
 
 log = get_logger(__name__)
 
@@ -76,7 +76,7 @@ def create_run(
     not_ready = [s.title or s.url for s in srcs if s.status != SourceStatus.ready]
     if not_ready:
         raise RunInputError(f"not analysed yet: {', '.join(not_ready[:3])}")
-    settings = get_settings()
+    settings = settings_store.effective(db)
     uses_ai = pick_mode != "free" and settings.ai_provider != "none"
     run = Run(
         params={
@@ -148,7 +148,7 @@ def _set_run(run_id: uuid.UUID, **values: Any) -> None:
 
 
 def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
-    settings = get_settings()
+    settings = settings_store.effective()
     with get_sessionmaker()() as s:
         run = s.get(Run, run_id)
         if run is None:
@@ -159,6 +159,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         sents = {str(sid): load_sentences(s, sid) for sid in source_ids}
         used = used_ranges(s, source_ids)
         ai_model = run.ai_model
+        run_uses_ai = run.ai_provider is not None
     _set_run(run_id, status=RunStatus.running, started_at=utcnow(), error=None)
     n, mode, topic = int(params["n"]), str(params["pick_mode"]), params.get("topic")
     credits = {sid: (src.channel_name or None) for sid, src in srcs.items()}
@@ -188,7 +189,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
 
     usage = Usage(provider="none", model="heuristic")
     picks: list[Pick]
-    provider = make_provider(settings, ai_model) if mode != "free" else None
+    provider = make_provider(settings, ai_model) if mode != "free" and run_uses_ai else None
     if provider is None:
         picks = heuristic_picks(pool, n=n, credit_for=credits)
     else:
@@ -245,6 +246,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         for lst in sents.values()
         for cb in find_callbacks(lst, limit=5)
     ]
+    created: list[Short] = []
     with get_sessionmaker()() as s:
         s.add_all(
             CandidateRow(
@@ -277,6 +279,10 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
             s.add(short)
             s.flush()
             s.add(ShortPart(short_id=short.id, idx=0, start_s=p.start, end_s=p.end))
+            created.append(short)
+        if settings.auto_render:  # Settings -> Rendering -> "Render picks automatically"
+            for short in created:
+                versions.enqueue_render(s, short, {})
         run = s.get(Run, run_id)
         assert run is not None
         run.status = RunStatus.succeeded

@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, FlaskConical } from 'lucide-react'
+import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { JobRow } from '@/components/JobRow'
 import { Badge, Button, Card, CardHeader } from '@/components/ui'
 import { api, unwrap } from '@/lib/api/client'
 import { useJobs, useStartSelftest } from '@/lib/jobs'
+import { useStats } from '@/lib/shorts'
 import { useNow } from '@/lib/useNow'
 
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -142,12 +144,74 @@ function JobsCard() {
   )
 }
 
+function Tile({
+  to,
+  label,
+  value,
+  tone,
+}: {
+  to: string
+  label: string
+  value: number
+  tone?: string
+}) {
+  return (
+    <Link
+      to={to}
+      className="rounded-xl border border-border bg-surface px-4 py-3.5 transition hover:border-muted"
+    >
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? ''}`}>{value}</p>
+    </Link>
+  )
+}
+
+function Overview() {
+  const { t } = useTranslation()
+  const stats = useStats()
+  const d = stats.data
+  if (!d) return null
+  const sh = d.shorts
+  return (
+    <div
+      className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+      aria-label={t('dashboard.overview')}
+    >
+      <Tile to="/sources" label={t('dashboard.tiles.sources')} value={d.sources_ready} />
+      <Tile
+        to="/shorts?tab=picked"
+        label={t('dashboard.tiles.picked')}
+        value={(sh.picked ?? 0) + (sh.rendering ?? 0)}
+      />
+      <Tile
+        to="/review"
+        label={t('dashboard.tiles.review')}
+        value={sh.review ?? 0}
+        tone={(sh.review ?? 0) > 0 ? 'text-accent' : undefined}
+      />
+      <Tile
+        to="/shorts?tab=approved"
+        label={t('dashboard.tiles.approved')}
+        value={sh.approved ?? 0}
+        tone="text-ok"
+      />
+      <Tile
+        to="/shorts?qc=fail"
+        label={t('dashboard.tiles.qcFail')}
+        value={d.qc.fail ?? 0}
+        tone={(d.qc.fail ?? 0) > 0 ? 'text-danger' : undefined}
+      />
+    </div>
+  )
+}
+
 export function Dashboard() {
   const { t } = useTranslation()
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <PageHeader title={t('dashboard.title')} subtitle={t('dashboard.subtitle')} />
       <div className="grid gap-6">
+        <Overview />
         <SystemCard />
         <JobsCard />
       </div>

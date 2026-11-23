@@ -33,6 +33,18 @@ export type RenderOptions = components['schemas']['RenderOptions']
 export type RenderRequest = components['schemas']['RenderRequest']
 export type Aspect = NonNullable<RenderRequest['aspects']>[number]
 export type Layout = NonNullable<RenderRequest['layout']>
+export type ShortStatus = ShortPick['status']
+export type ShortDetail = components['schemas']['ShortDetail']
+export type ShortVersion = components['schemas']['VersionOut']
+export type ShortPage = components['schemas']['ShortPage']
+export type ReviewAction = components['schemas']['ReviewRequest']['action']
+export type Stats = components['schemas']['StatsOut']
+export type ShortWords = components['schemas']['ShortWords']
+export type StudioWord = components['schemas']['WordOut']
+export type ContextSentence = components['schemas']['ContextSentence']
+export type EditPlan = components['schemas']['EditOut']
+export type SettingField = components['schemas']['SettingField']
+export type SettingsPatch = components['schemas']['SettingsPatch']
 
 export const mediaUrl = (assetId: string) => `/api/v1/media/${assetId}`
 
@@ -55,7 +67,11 @@ export class ApiError extends Error {
 export function unwrap<T>(r: { data?: T; error?: unknown; response: Response }): T {
   if (r.error !== undefined || r.data === undefined) {
     const detail = (r.error as { detail?: unknown } | undefined)?.detail
-    const msg = typeof detail === 'string' ? detail : `Request failed (${r.response.status})`
+    let msg = `Request failed (${r.response.status})`
+    if (typeof detail === 'string') msg = detail
+    else if (Array.isArray(detail) && detail[0]?.msg) msg = String(detail[0].msg)
+    else if (detail && typeof detail === 'object' && 'message' in detail)
+      msg = String((detail as { message: unknown }).message)
     throw new ApiError(msg, r.response.status)
   }
   return r.data

@@ -10,7 +10,7 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 | 3 | Transcription & signals | 2 | **done** |
 | 4 | Moment selection (no-AI + AI) | 3 | **done** (Ollama; Claude provider pending a key) |
 | 5 | Rendering engine core + QC | 4 | **core done** (see docs/pipeline/render.md for open items) |
-| 6 | Web app: dashboard, library, review, studio, onboarding | 1 (API), 5 | 2 wk |
+| 6 | Web app: dashboard, library, review, studio, onboarding | 1 (API), 5 | **core done** (Playwright E2E open; see docs/pipeline/studio.md) |
 | 7 | Creators, discovery & live | 3, 6 | 1.5 wk |
 | 8 | Formats, FX, voice, translation, branding | 5, 6 | 1.5–2 wk |
 | 9 | Scheduling, publishing, autopilot, insights | 6 | 1.5 wk |
@@ -50,7 +50,9 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 **Deliverables:** full pipeline link → finished MP4s with QC.
 **Exit:** golden-media tests pass; render time target met on your GPU.
 
-### Phase 6 — Web app (MVP)
+### Phase 6 — Web app (MVP) ✅ core (2026-11-23)
+**Result:** library, review queue with hotkeys, Short studio (post, trim, captions, look, AI edit; every render kept as a version), single and per-run ZIP export with post texts, dashboard counts, settings stored in the database over `.env`, first-run setup. 225 backend + 28 frontend tests; checked by hand in the browser including a real Ollama AI edit → re-render. Open: Playwright E2E, create-wizard dry run, contact sheet, manual crop position. Details: docs/pipeline/studio.md.
+
 **Tasks:** app shell, theme, i18n; onboarding; dashboard; create-run wizard with dry run; run detail with live progress; library; review queue with hotkeys; Short studio (preview, trim, captions, look, post tabs); versioning & re-render; manual edit; AI edit; export/ZIP; settings (AI, processing, storage).
 **Deliverables:** complete MVP usable end-to-end in the browser.
 **Exit:** Playwright E2E green; usability pass.

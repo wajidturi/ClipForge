@@ -1,4 +1,13 @@
-import { Check, Clapperboard, Download, ExternalLink, Pencil, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  Clapperboard,
+  Download,
+  ExternalLink,
+  Pencil,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -223,6 +232,12 @@ export function PickCard({
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs text-muted hover:bg-surface-2 hover:text-fg"
               >
                 <ExternalLink size={14} aria-hidden /> {t('runs.watch')}
+              </Link>
+              <Link
+                to={`/shorts/${pick.id}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs text-muted hover:bg-surface-2 hover:text-fg"
+              >
+                <SlidersHorizontal size={14} aria-hidden /> {t('runs.studio')}
               </Link>
               {editable && (
                 <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>

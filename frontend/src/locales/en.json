@@ -1,5 +1,7 @@
 {
-  "app": { "name": "ClipForge" },
+  "app": {
+    "name": "ClipForge"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "create": "Create",
@@ -18,15 +20,25 @@
     "connecting": "Connecting…",
     "closed": "Offline – reconnecting"
   },
-  "theme": { "toggle": "Toggle theme" },
+  "theme": {
+    "toggle": "Toggle theme"
+  },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "System status and background jobs.",
+    "subtitle": "Your Shorts at a glance, system status and background jobs.",
     "system": "System",
     "jobs": "Background jobs",
     "jobsEmpty": "No jobs yet. Run a self-test to check that workers are processing jobs.",
     "selftest": "Run self-test",
-    "noWorkers": "Queued jobs wait for a worker. Start one with: clipforge dev"
+    "noWorkers": "Queued jobs wait for a worker. Start one with: clipforge dev",
+    "overview": "Overview",
+    "tiles": {
+      "sources": "Sources ready",
+      "picked": "Picks not rendered",
+      "review": "Waiting for review",
+      "approved": "Approved",
+      "qcFail": "Failed QC"
+    }
   },
   "system": {
     "gpu": "GPU",
@@ -200,7 +212,10 @@
     "drop": "Drop",
     "callbacks": "Possible callbacks (claim → payoff)",
     "rejected": "Rejected suggestions ({{n}})",
-    "candidates": "All candidates ({{n}})"
+    "candidates": "All candidates ({{n}})",
+    "studio": "Studio",
+    "exportApproved": "Export approved (ZIP)",
+    "exportAll": "Export all rendered"
   },
   "render": {
     "style": "Caption style",
@@ -214,11 +229,318 @@
     "queued": "Waiting for a worker…",
     "player": "Rendered Short",
     "took": "rendered in {{s}}s",
-    "qc": { "pass": "passed", "warn": "warnings", "fail": "failed", "none": "–" }
+    "qc": {
+      "pass": "passed",
+      "warn": "warnings",
+      "fail": "failed",
+      "none": "–"
+    }
   },
   "placeholder": {
     "title": "{{page}}",
     "body": "This area is built in Phase {{phase}} of the roadmap."
   },
-  "error": { "generic": "Something went wrong", "retry": "Try again" }
+  "error": {
+    "generic": "Something went wrong",
+    "retry": "Try again"
+  },
+  "shorts": {
+    "title": "Shorts",
+    "subtitle": "Every Short you have picked or rendered. Open one to edit it in the studio.",
+    "tabs": {
+      "all": "All",
+      "review": "To review",
+      "approved": "Approved",
+      "picked": "Not rendered",
+      "rejected": "Rejected",
+      "failed": "Failed"
+    },
+    "status": {
+      "picked": "Picked",
+      "rendering": "Rendering",
+      "review": "To review",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "scheduled": "Scheduled",
+      "published": "Published",
+      "failed": "Failed",
+      "dropped": "Dropped"
+    },
+    "qcFilter": "Filter by QC result",
+    "qcAny": "Any QC",
+    "search": "Search hook, title or credit",
+    "selected": "{{n}} selected",
+    "clear": "Clear selection",
+    "skipped": "{{n}} skipped (wrong state)",
+    "empty": "No Shorts yet. Pick some moments on",
+    "noMatch": "Nothing matches these filters.",
+    "count": "{{n}} Shorts",
+    "more": "Load more",
+    "untitled": "Untitled Short",
+    "select": "Select"
+  },
+  "review": {
+    "title": "Review",
+    "subtitle": "Watch each rendered Short and approve or reject it. Approved Shorts are ready to export.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "reopen": "Re-open",
+    "edit": "Edit",
+    "reason": "Reason",
+    "reasonPh": "Why? (optional, Enter to reject)",
+    "prev": "Previous",
+    "next": "Next",
+    "position": "{{pos}} of {{total}}",
+    "source": "Source",
+    "range": "Part of the video",
+    "length": "Length",
+    "noVideo": "No video",
+    "empty": "All caught up — nothing waiting for review.",
+    "seeApproved": "See approved Shorts",
+    "keys": "Keys: A approve · R reject · J next · K previous · E open in studio"
+  },
+  "studio": {
+    "notFound": "This Short does not exist (it may have been deleted).",
+    "backRun": "Back to the run",
+    "export": "Export ZIP",
+    "notRendered": "Not rendered yet. Choose a look and render it.",
+    "versions": "Versions",
+    "needsRender": "Saved. Render again to see this change in the video.",
+    "renderNow": "Render now",
+    "saved": "Saved",
+    "undo": "Undo",
+    "origin": {
+      "render": "first render",
+      "rerender": "re-render",
+      "manual_edit": "your edit",
+      "ai_edit": "AI edit",
+      "recut": "auto re-cut",
+      "voice": "voice"
+    },
+    "tabs": {
+      "post": "Post",
+      "trim": "Trim",
+      "captions": "Captions",
+      "look": "Look",
+      "ai": "AI edit"
+    },
+    "post": {
+      "hook": "Hook",
+      "hookHelp": "The banner in the first seconds. 2–6 punchy words.",
+      "title": "Title",
+      "titleHelp": "Shown when posting. {{n}}/100 characters recommended.",
+      "hashtags": "Hashtags",
+      "hashtagsHelp": "Separated by spaces. #shorts is added automatically.",
+      "keywords": "Highlighted words",
+      "keywordsHelp": "Up to 3, separated by commas. They are coloured in the captions."
+    },
+    "trim": {
+      "help": "The highlighted sentences are in the Short. Hover a sentence to start or end there. Cuts always fall between sentences.",
+      "was": "was {{from}} – {{to}}",
+      "startHere": "Start here",
+      "endHere": "End here",
+      "saveRender": "Save and render"
+    },
+    "captions": {
+      "help": "Click a word to fix how it is spelled in the captions, or hide it. The audio is not changed.",
+      "editWord": "Edit word",
+      "restore": "Undo this fix",
+      "hide": "Hide this word",
+      "render": "Render with {{n}} caption fixes",
+      "active": "{{n}} fixes in the current video"
+    },
+    "ai": {
+      "instruction": "What should change?",
+      "placeholder": "Describe the change, e.g. “make the hook punchier and start 2 seconds later”. Ctrl+Enter to send.",
+      "plan": "Suggest the edit",
+      "thinking": "Thinking…",
+      "apply": "Apply",
+      "discard": "Discard",
+      "rendering": "Applied. A new version is rendering.",
+      "appliedText": "Applied (texts only, no new render needed).",
+      "history": "Earlier requests",
+      "start": "start {{s}}s",
+      "end": "end {{s}}s",
+      "ideas": {
+        "punchier": "Make the hook punchier",
+        "later": "Start 2 seconds later",
+        "shorter": "Make it shorter",
+        "karaoke": "Use the karaoke style",
+        "title": "Write a better title"
+      },
+      "op": {
+        "trim": "Trim",
+        "set_hook": "Hook",
+        "set_title": "Title",
+        "set_style": "Caption style",
+        "set_layout": "Layout",
+        "set_keywords": "Highlights",
+        "set_hashtags": "Hashtags",
+        "fix_word": "Caption fix"
+      },
+      "status": {
+        "pending": "Pending",
+        "planned": "Not applied",
+        "applied": "Applied",
+        "failed": "Not possible"
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Saved here, these override the values from the .env file. Paths, ports and keys stay in .env.",
+    "section": {
+      "ai": "AI",
+      "analysis": "Analysis",
+      "render": "Rendering",
+      "sources": "Downloading sources"
+    },
+    "automatic": "Automatic",
+    "unsaved": "Not saved",
+    "reset": "Use default",
+    "defaultIs": "Default: {{v}}",
+    "changes": "{{n}} unsaved changes",
+    "setupTitle": "Setup wizard",
+    "setupHelp": "Run the first-start setup again (system check, AI, first source).",
+    "setupAgain": "Open setup",
+    "choice": {
+      "ai_provider": {
+        "ollama": "Local AI (Ollama)",
+        "none": "No AI (signal scores only)"
+      },
+      "whisper_device": {
+        "auto": "Automatic",
+        "cuda": "GPU (CUDA)",
+        "cpu": "CPU"
+      },
+      "render_layout": {
+        "auto": "Automatic",
+        "crop": "Follow the subject",
+        "stack": "Facecam on top",
+        "bubble": "Round facecam",
+        "full": "Whole picture"
+      },
+      "render_aspects": {
+        "4:5": "4:5 (Instagram feed)",
+        "1:1": "1:1 (square)"
+      }
+    },
+    "f": {
+      "ai_provider": {
+        "label": "AI for picking and editing",
+        "help": "Local AI runs on this PC through Ollama. Without AI, picks use signal scores."
+      },
+      "ollama_url": {
+        "label": "Ollama address",
+        "help": "Where Ollama listens (default http://127.0.0.1:11434)."
+      },
+      "ollama_model": {
+        "label": "Model",
+        "help": "Installed models are suggested. Install others with: ollama pull <name>"
+      },
+      "ai_timeout_s": {
+        "label": "AI time limit (seconds)",
+        "help": "Give up and fall back to signal scores after this long."
+      },
+      "candidates_k": {
+        "label": "Candidates shown to the AI",
+        "help": "More = better choice but slower. Deep mode doubles it."
+      },
+      "whisper_model": {
+        "label": "Speech model",
+        "help": "Automatic = small on a GPU, base on CPU. Larger is more accurate and slower."
+      },
+      "whisper_device": {
+        "label": "Transcribe on",
+        "help": "Automatic uses the GPU when it works."
+      },
+      "transcribe_language": {
+        "label": "Spoken language",
+        "help": "Two-letter code like en, es, ur. Empty = detect automatically."
+      },
+      "vision_enabled": {
+        "label": "Analyse the picture",
+        "help": "Motion, faces and scene cuts. Needed for the preview strips and smart cropping."
+      },
+      "banner_ocr": {
+        "label": "Read on-screen banners",
+        "help": "Finds text like WASTED or VICTORY. Slow."
+      },
+      "loud_rise_db": {
+        "label": "Loud moment threshold (dB)",
+        "help": "How much louder than usual counts as a reaction."
+      },
+      "chat_spike_ratio": {
+        "label": "Chat spike ratio",
+        "help": "Chat speed this many times above normal counts as a spike."
+      },
+      "chat_spike_min_per_min": {
+        "label": "Minimum chat speed",
+        "help": "Messages per minute needed for a spike."
+      },
+      "render_style": {
+        "label": "Default caption style",
+        "help": "Used when a render does not choose one."
+      },
+      "render_layout": {
+        "label": "Default layout",
+        "help": "Automatic picks crop, facecam on top or round facecam per Short."
+      },
+      "render_aspects": {
+        "label": "Extra sizes",
+        "help": "Also export these sizes with every render."
+      },
+      "auto_render": {
+        "label": "Render picks automatically",
+        "help": "Start rendering as soon as moments are picked."
+      },
+      "ytdlp_cookies_browser": {
+        "label": "Browser cookies for downloads",
+        "help": "Use when a site asks you to sign in or prove you are not a bot. Empty = none."
+      },
+      "max_source_hours": {
+        "label": "Longest video analysed in full (hours)",
+        "help": "Longer videos use only part of the video."
+      },
+      "default_window_hours": {
+        "label": "Part used of longer videos (hours)",
+        "help": "Taken from the start unless you choose a time range."
+      }
+    }
+  },
+  "welcome": {
+    "title": "Welcome to ClipForge",
+    "subtitle": "Three quick steps and you are ready to make Shorts.",
+    "steps": "Setup steps",
+    "step": {
+      "system": "This PC",
+      "ai": "AI",
+      "source": "First video"
+    },
+    "head": {
+      "system": "What ClipForge does, and a quick check of this PC",
+      "ai": "Choose how moments are picked",
+      "source": "Add your first long video"
+    },
+    "what1": "Finds the best moments in long videos and streams (speech, loudness, chat, picture).",
+    "what2": "Turns them into vertical Shorts with captions, a hook and smart cropping.",
+    "what3": "Everything runs on this PC. You review and approve before exporting.",
+    "check": "System check",
+    "ai": {
+      "ollama": {
+        "name": "Local AI (recommended)",
+        "help": "Free and private, runs on this PC with Ollama. Writes hooks and titles."
+      },
+      "none": {
+        "name": "No AI",
+        "help": "Works offline instantly using signal scores. You can switch later."
+      },
+      "modelHelp": "A 3–8B model works well. Install with: ollama pull qwen3.5:4b"
+    },
+    "sourceHelp": "Paste a link to a stream or video, or upload a file. You can also do this later on the Sources page.",
+    "back": "Back",
+    "next": "Next",
+    "skip": "Skip setup",
+    "finish": "Finish"
+  }
 }

@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import delete, select
 
 from clipforge.core import ffmpeg
-from clipforge.core.config import Settings, get_settings
+from clipforge.core.config import Settings
 from clipforge.core.logging import get_logger
 from clipforge.db.enums import AssetKind, AssetOwner, Platform, SignalType, SourceStatus
 from clipforge.db.models import MediaAsset, Segment, Signal, Source, Transcript
@@ -42,7 +42,7 @@ from clipforge.pipeline.signals import replay as replay_sig
 from clipforge.pipeline.signals import vision as vision_sig
 from clipforge.pipeline.transcription.sentences import Sentence, Word, build_sentences
 from clipforge.pipeline.transcription.whisper import Transcriber, TranscriptionCancelledError
-from clipforge.services import ingest
+from clipforge.services import ingest, settings_store
 from clipforge.services.sources import original_file, source_dir
 
 log = get_logger(__name__)
@@ -363,7 +363,7 @@ class _Run:
 
 
 def analyze(ctx: JobContext, source_id: uuid.UUID, options: dict[str, Any]) -> dict[str, Any]:
-    settings = get_settings()
+    settings = settings_store.effective()
     if "vision" in options:
         settings = settings.model_copy(update={"vision_enabled": bool(options["vision"])})
     if "banners" in options:

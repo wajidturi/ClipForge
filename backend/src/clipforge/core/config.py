@@ -1,7 +1,9 @@
 """Application settings.
 
-Layering: built-in defaults -> environment variables / `.env` (prefix ``CF_``).
-UI-editable settings stored in the database are layered on top in a later phase.
+Layering: built-in defaults -> environment variables / `.env` (prefix ``CF_``)
+-> values saved in the Settings page (database, see ``services/settings_store``).
+Only a whitelisted set of fields can be changed from the UI; paths, ports and
+secrets stay in the environment.
 """
 
 from __future__ import annotations
@@ -66,6 +68,15 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3.5:4b"
     ai_timeout_s: float = Field(default=300, gt=0)
     candidates_k: int = Field(default=30, ge=5, le=120)
+
+    # Rendering defaults (Phase 6; editable in Settings)
+    render_style: str = "classic"
+    render_layout: Literal["auto", "crop", "stack", "bubble", "full"] = "auto"
+    render_aspects: list[Literal["4:5", "1:1"]] = Field(default_factory=list)
+    auto_render: bool = False  # render picks as soon as a run finishes
+
+    # First-run wizard finished (stored in the database by the UI)
+    onboarded: bool = False
 
     # Where the built frontend lives (served by the API in production)
     frontend_dist: Path = Path(__file__).resolve().parents[4] / "frontend" / "dist"

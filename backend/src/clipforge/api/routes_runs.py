@@ -31,15 +31,16 @@ from clipforge.api.schemas import (
 from clipforge.db.enums import AssetKind, AssetOwner, ShortStatus
 from clipforge.db.models import Candidate, Job, MediaAsset, Run, Short, ShortPart, ShortVersion
 from clipforge.pipeline.render import captions, compose
-from clipforge.pipeline.selection.validate import clean_hashtags, clean_hook, clean_title, snap
 from clipforge.services import preview as preview_svc
 from clipforge.services import runs as runs_svc
+from clipforge.services import settings_store
+from clipforge.services import shorts as shorts_svc
 from clipforge.services import versions as versions_svc
 
 router = APIRouter(tags=["runs"])
 
 
-def _shorts_out(db: DB, shorts: list[Short]) -> list[ShortOut]:
+def shorts_out(db: DB, shorts: list[Short]) -> list[ShortOut]:
     if not shorts:
         return []
     ids = [s.id for s in shorts]
@@ -61,6 +62,7 @@ def _shorts_out(db: DB, shorts: list[Short]) -> list[ShortOut]:
         db, [s.active_version_id for s in shorts if s.active_version_id]
     )
     jobs = versions_svc.latest_render_jobs(db, ids)
+    titles = shorts_svc.source_titles(db, {s.source_id for s in shorts})
     return [
         ShortOut.model_validate(s).model_copy(
             update={
@@ -70,6 +72,7 @@ def _shorts_out(db: DB, shorts: list[Short]) -> list[ShortOut]:
                 if s.active_version_id in active
                 else None,
                 "render_job_id": jobs.get(s.id),
+                "source_title": titles.get(s.source_id),
             }
         )
         for s in shorts
@@ -83,7 +86,7 @@ def _get_run(db: DB, run_id: uuid.UUID) -> Run:
     return run
 
 
-def _get_short(db: DB, short_id: uuid.UUID) -> Short:
+def get_short_or_404(db: DB, short_id: uuid.UUID) -> Short:
     short = db.get(Short, short_id)
     if short is None or short.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "short not found")
@@ -126,7 +129,7 @@ def get_run(run_id: uuid.UUID, db: DB) -> RunDetail:
     job_id = db.scalar(select(Job.id).where(Job.run_id == run_id).order_by(Job.id.desc()))
     return RunDetail(
         **RunOut.model_validate(run).model_dump(),
-        shorts=_shorts_out(db, shorts),
+        shorts=shorts_out(db, shorts),
         candidates=[CandidateOut.model_validate(c) for c in cands],
         job_id=job_id,
     )
@@ -134,50 +137,32 @@ def get_run(run_id: uuid.UUID, db: DB) -> RunDetail:
 
 @router.patch("/shorts/{short_id}", response_model=ShortOut)
 def edit_short(short_id: uuid.UUID, body: ShortPatch, db: DB) -> ShortOut:
-    """Edit a pick before rendering. Times snap to whole sentences."""
-    short = _get_short(db, short_id)
-    if short.status != ShortStatus.picked:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "only picks that are not rendered yet can be edited here"
-        )
-    if body.hook is not None:
-        short.hook = clean_hook(body.hook)
-    if body.title is not None:
-        short.title = clean_title(body.title)
-    if body.hashtags is not None:
-        short.hashtags = clean_hashtags(body.hashtags)
-    if body.keywords is not None:
-        short.keywords = [k.strip().upper() for k in body.keywords if k.strip()][:3]
-    if body.start_s is not None or body.end_s is not None:
-        part = db.scalar(
-            select(ShortPart).where(ShortPart.short_id == short_id).order_by(ShortPart.idx)
-        )
-        assert part is not None
-        start = part.start_s if body.start_s is None else body.start_s
-        end = part.end_s if body.end_s is None else body.end_s
-        sents = runs_svc.load_sentences(db, short.source_id)
-        ij = snap(sents, start, end)
-        if ij is None:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                "end must be after start, inside the transcript",
-            )
-        part.start_s, part.end_s = sents[ij[0]].start, sents[ij[1]].end
+    """Edit texts or times (not while rendering). Times snap to whole sentences.
+
+    Changes to the picture (times, hook, keywords) show up after the next render.
+    """
+    short = get_short_or_404(db, short_id)
+    try:
+        shorts_svc.apply_patch(db, short, body.model_dump(exclude_none=True))
+    except shorts_svc.ShortStateError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
+    except shorts_svc.ShortInputError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
     db.commit()
-    return _shorts_out(db, [short])[0]
+    return shorts_out(db, [short])[0]
 
 
 @router.delete("/shorts/{short_id}", status_code=status.HTTP_204_NO_CONTENT)
 def drop_short(short_id: uuid.UUID, db: DB) -> None:
     """Drop a pick (kept for history; its time range becomes free again)."""
-    short = _get_short(db, short_id)
+    short = get_short_or_404(db, short_id)
     short.status = ShortStatus.dropped
     db.commit()
 
 
 @router.get("/shorts/{short_id}/preview.jpg", response_class=FileResponse)
 async def short_preview(short_id: uuid.UUID, db: DB, settings: Config) -> FileResponse:
-    _get_short(db, short_id)
+    get_short_or_404(db, short_id)
     try:
         path = await run_in_threadpool(preview_svc.preview_strip, db, settings, short_id)
     except preview_svc.NoPreviewError as e:
@@ -186,7 +171,8 @@ async def short_preview(short_id: uuid.UUID, db: DB, settings: Config) -> FileRe
 
 
 @router.get("/ai/status", response_model=AIStatusOut)
-async def ai_status(settings: Config) -> AIStatusOut:
+async def ai_status() -> AIStatusOut:
+    settings = await run_in_threadpool(settings_store.effective)
     if settings.ai_provider == "none":
         return AIStatusOut(
             provider="none",
@@ -232,8 +218,8 @@ async def render_options() -> RenderOptions:
 
 @router.get("/shorts/{short_id}", response_model=ShortDetail)
 def get_short(short_id: uuid.UUID, db: DB) -> ShortDetail:
-    short = _get_short(db, short_id)
-    base = _shorts_out(db, [short])[0]
+    short = get_short_or_404(db, short_id)
+    base = shorts_out(db, [short])[0]
     vids = list(
         db.scalars(
             select(ShortVersion.id)
@@ -249,12 +235,12 @@ def get_short(short_id: uuid.UUID, db: DB) -> ShortDetail:
     "/shorts/{short_id}/render", response_model=RenderQueued, status_code=status.HTTP_202_ACCEPTED
 )
 def render_short(short_id: uuid.UUID, body: RenderRequest, db: DB) -> RenderQueued:
-    short = _get_short(db, short_id)
+    short = get_short_or_404(db, short_id)
     if body.style and body.style not in captions.STYLES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown style '{body.style}'")
     opts = body.model_dump(exclude_none=True)
-    if short.active_version_id:
-        opts["origin"] = "rerender"
+    if opts.get("origin") != "manual_edit":  # studio saves say so; otherwise infer it
+        opts["origin"] = "rerender" if short.active_version_id else "render"
     try:
         job = versions_svc.enqueue_render(db, short, opts)
     except versions_svc.RenderStateError as e:
@@ -273,7 +259,7 @@ def render_run(run_id: uuid.UUID, body: RunRenderRequest, db: DB) -> RenderQueue
     q = select(Short).where(Short.run_id == run_id, Short.status == ShortStatus.picked)
     if body.short_ids:
         q = q.where(Short.id.in_(body.short_ids))
-    opts = body.model_dump(exclude_none=True, exclude={"short_ids"})
+    opts = body.model_dump(exclude_none=True, exclude={"short_ids", "origin"})
     jobs = []
     for short in db.scalars(q):
         try:

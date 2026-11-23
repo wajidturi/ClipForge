@@ -14,7 +14,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from clipforge import __version__
-from clipforge.api import routes_jobs, routes_media, routes_runs, routes_sources, routes_system
+from clipforge.api import (
+    routes_jobs,
+    routes_media,
+    routes_runs,
+    routes_settings,
+    routes_shorts,
+    routes_sources,
+    routes_system,
+)
 from clipforge.api.events import EventHub
 from clipforge.core.config import Settings, get_settings
 from clipforge.core.logging import configure_logging, get_logger
@@ -64,6 +72,8 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     api.include_router(routes_sources.router)
     api.include_router(routes_media.router)
     api.include_router(routes_runs.router)
+    api.include_router(routes_shorts.router)
+    api.include_router(routes_settings.router)
 
     @api.websocket("/ws")
     async def ws(socket: WebSocket) -> None:

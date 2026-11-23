@@ -2,7 +2,7 @@
 
 A local-first, AI-assisted application that turns long videos and live streams into finished vertical Shorts: it finds the best moments, reframes to 9:16 with face tracking, adds animated captions and hooks, checks quality, and lets you review, edit, schedule and publish.
 
-**Status:** Phase 5 core complete: picks render into finished 1080×1920 Shorts (face-tracked crop, facecam stack/bubble, full; 5 caption styles; hook; zoom; −14 LUFS; cover; QC with auto re-cut). Next: the open Phase 5 items, then Phase 6 (studio and review).
+**Status:** Phase 6 MVP built: paste a link → AI or no-AI picks → rendered Shorts → review queue (hotkeys) → studio (post texts, trim, caption fixes, look, AI edit with versions) → ZIP export; settings page and first-run setup. See [docs/pipeline/studio.md](docs/pipeline/studio.md). Next: Playwright E2E for the MVP, then Phase 7 (creators, discovery, live).
 
 ## Quick start (Windows)
 
@@ -40,7 +40,7 @@ scripts/            setup.ps1, dev.ps1, dev.sh
 | # | Document |
 |---|---|
 | — | [Developer setup](docs/setup.md) |
-| — | Pipeline: [ingestion](docs/pipeline/ingest.md) · [transcription & signals](docs/pipeline/analysis.md) · [moment selection](docs/pipeline/selection.md) · [rendering & QC](docs/pipeline/render.md) |
+| — | Pipeline: [ingestion](docs/pipeline/ingest.md) · [transcription & signals](docs/pipeline/analysis.md) · [moment selection](docs/pipeline/selection.md) · [rendering & QC](docs/pipeline/render.md) · [studio, review & export](docs/pipeline/studio.md) |
 | 01 | [Reverse engineering & research findings](docs/01-research-findings.md) |
 | 02 | [Feature inventory](docs/02-feature-inventory.md) |
 | 03 | [Technology stack, environment & dependencies](docs/03-tech-stack-and-environment.md) |

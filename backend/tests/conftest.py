@@ -12,12 +12,14 @@ from clipforge.db import migrate
 from clipforge.db.session import get_engine, get_sessionmaker
 from clipforge.pipeline.transcription.sentences import Word
 from clipforge.pipeline.transcription.whisper import TranscribeResult
+from clipforge.services import settings_store
 
 
 def _clear_caches() -> None:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_sessionmaker.cache_clear()
+    settings_store.invalidate()
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,9 @@
 import { Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet } from 'react-router'
+import { Navigate, NavLink, Outlet } from 'react-router'
 import { useConnection, useServerEvents } from '@/lib/events'
+import { settingValue, useSettings } from '@/lib/settings'
+import { useStats } from '@/lib/shorts'
 import { useTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 import { NAV } from './nav'
@@ -22,6 +24,12 @@ export function AppShell() {
   const { t } = useTranslation()
   const { theme, toggle } = useTheme()
   useServerEvents()
+  const settings = useSettings()
+  const stats = useStats()
+  const toReview = stats.data?.shorts.review ?? 0
+  // First run: show the setup wizard once (it sets `onboarded`).
+  if (settings.data && settingValue<boolean>(settings.data, 'onboarded') === false)
+    return <Navigate to="/welcome" replace />
 
   return (
     <div className="flex h-full">
@@ -46,7 +54,12 @@ export function AppShell() {
               }
             >
               <Icon size={17} aria-hidden />
-              {t(`nav.${key}`)}
+              <span className="flex-1">{t(`nav.${key}`)}</span>
+              {key === 'review' && toReview > 0 && (
+                <span className="rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-fg tabular-nums">
+                  {toReview}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

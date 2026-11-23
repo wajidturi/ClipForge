@@ -351,7 +351,9 @@ export interface paths {
     head?: never
     /**
      * Edit Short
-     * @description Edit a pick before rendering. Times snap to whole sentences.
+     * @description Edit texts or times (not while rendering). Times snap to whole sentences.
+     *
+     *     Changes to the picture (times, hook, keywords) show up after the next render.
      */
     patch: operations['edit_short_api_v1_shorts__short_id__patch']
     trace?: never
@@ -441,10 +443,227 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/shorts': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Shorts
+     * @description The Shorts library, newest first. Dropped picks are hidden unless asked for.
+     */
+    get: operations['list_shorts_api_v1_shorts_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/stats': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Get Stats */
+    get: operations['get_stats_api_v1_stats_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/review': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Review Short */
+    post: operations['review_short_api_v1_shorts__short_id__review_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/review': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Review Many
+     * @description Approve/reject/re-open several Shorts; ones in the wrong state are skipped.
+     */
+    post: operations['review_many_api_v1_shorts_review_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/export.zip': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Export Short
+     * @description Video, cover, extra sizes and post.txt (title, caption, hashtags, credit).
+     */
+    get: operations['export_short_api_v1_shorts__short_id__export_zip_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/runs/{run_id}/export.zip': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Export Run
+     * @description All approved (or all rendered: approved + in review) Shorts of a run.
+     */
+    get: operations['export_run_api_v1_runs__run_id__export_zip_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/words': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Short Words
+     * @description Words in the Short (caption fixes) and the sentences around it (trimming).
+     */
+    get: operations['short_words_api_v1_shorts__short_id__words_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/ai-edit': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Plan Ai Edit
+     * @description Ask the AI for an edit plan. Nothing changes until the plan is applied.
+     */
+    post: operations['plan_ai_edit_api_v1_shorts__short_id__ai_edit_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/edits': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List Edits */
+    get: operations['list_edits_api_v1_shorts__short_id__edits_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/edits/{edit_id}/apply': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Apply Edit */
+    post: operations['apply_edit_api_v1_edits__edit_id__apply_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/settings': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Settings View
+     * @description Settings that can be changed in the app, with their current and default values.
+     */
+    get: operations['get_settings_view_api_v1_settings_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Update Settings
+     * @description Save values (validated all-or-nothing) and/or reset keys to their defaults.
+     */
+    patch: operations['update_settings_api_v1_settings_patch']
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AIEditRequest */
+    AIEditRequest: {
+      /** Instruction */
+      instruction: string
+    }
     /** AIStatusOut */
     AIStatusOut: {
       /** Provider */
@@ -562,6 +781,35 @@ export interface components {
       /** End */
       end?: string | null
     }
+    /** BulkReviewOut */
+    BulkReviewOut: {
+      /** Updated */
+      updated: string[]
+      /** Skipped */
+      skipped: components['schemas']['BulkSkip'][]
+    }
+    /** BulkReviewRequest */
+    BulkReviewRequest: {
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: 'approve' | 'reject' | 'reopen'
+      /** Reason */
+      reason?: string | null
+      /** Short Ids */
+      short_ids: string[]
+    }
+    /** BulkSkip */
+    BulkSkip: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Reason */
+      reason: string
+    }
     /** CandidateOut */
     CandidateOut: {
       /** Rank */
@@ -597,12 +845,66 @@ export interface components {
       /** Required */
       required: boolean
     }
+    /** ContextSentence */
+    ContextSentence: {
+      /** Start */
+      start: number
+      /** End */
+      end: number
+      /** Text */
+      text: string
+      /** Heat */
+      heat: number
+      /** Inside */
+      inside: boolean
+    }
     /** DoctorOut */
     DoctorOut: {
       /** Ok */
       ok: boolean
       /** Checks */
       checks: components['schemas']['CheckOut'][]
+    }
+    /** EditApplied */
+    EditApplied: {
+      edit: components['schemas']['EditOut']
+      short: components['schemas']['ShortOut']
+      /** Job Id */
+      job_id: string | null
+    }
+    /** EditOut */
+    EditOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /**
+       * Short Id
+       * Format: uuid
+       */
+      short_id: string
+      /** Kind */
+      kind: string
+      /** Instruction */
+      instruction: string | null
+      /** Plan */
+      plan: {
+        [key: string]: unknown
+      }
+      /** Status */
+      status: string
+      /** Error */
+      error: string | null
+      /** Base Version Id */
+      base_version_id: string | null
+      /** Result Version Id */
+      result_version_id: string | null
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string
     }
     /** GpuOut */
     GpuOut: {
@@ -768,6 +1070,11 @@ export interface components {
       /** Example */
       example: string
     }
+    /**
+     * QcVerdict
+     * @enum {string}
+     */
+    QcVerdict: 'pass' | 'warn' | 'fail'
     /** RenderOptions */
     RenderOptions: {
       /** Styles */
@@ -795,6 +1102,25 @@ export interface components {
       layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
+      /**
+       * Caption Overrides
+       * @description word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept.
+       */
+      caption_overrides?: {
+        [key: string]: string
+      } | null
+      /** Origin */
+      origin?: ('render' | 'rerender' | 'manual_edit') | null
+    }
+    /** ReviewRequest */
+    ReviewRequest: {
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: 'approve' | 'reject' | 'reopen'
+      /** Reason */
+      reason?: string | null
     }
     /** RunCreate */
     RunCreate: {
@@ -920,6 +1246,15 @@ export interface components {
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
       /**
+       * Caption Overrides
+       * @description word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept.
+       */
+      caption_overrides?: {
+        [key: string]: string
+      } | null
+      /** Origin */
+      origin?: ('render' | 'rerender' | 'manual_edit') | null
+      /**
        * Short Ids
        * @description default: all picks
        */
@@ -946,6 +1281,52 @@ export interface components {
       tags: {
         [key: string]: unknown
       }[]
+    }
+    /** SettingField */
+    SettingField: {
+      /** Key */
+      key: string
+      /** Section */
+      section: string
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'bool' | 'int' | 'float' | 'str' | 'choice' | 'list'
+      /** Nullable */
+      nullable: boolean
+      /** Choices */
+      choices: unknown[] | null
+      /** Min */
+      min: number | null
+      /** Max */
+      max: number | null
+      /** Value */
+      value: unknown
+      /**
+       * Default
+       * @description value from the environment / built-in default
+       */
+      default: unknown
+      /** Overridden */
+      overridden: boolean
+    }
+    /** SettingsOut */
+    SettingsOut: {
+      /** Fields */
+      fields: components['schemas']['SettingField'][]
+    }
+    /** SettingsPatch */
+    SettingsPatch: {
+      /** Values */
+      values?: {
+        [key: string]: unknown
+      }
+      /**
+       * Reset
+       * @description keys to return to default
+       */
+      reset?: string[]
     }
     /** ShortDetail */
     ShortDetail: {
@@ -978,6 +1359,10 @@ export interface components {
       /** Ai Reason */
       ai_reason: string | null
       status: components['schemas']['ShortStatus']
+      /** Reject Reason */
+      reject_reason?: string | null
+      /** Source Title */
+      source_title?: string | null
       /** Parts */
       parts?: components['schemas']['ShortPartOut'][]
       /**
@@ -1032,6 +1417,10 @@ export interface components {
       /** Ai Reason */
       ai_reason: string | null
       status: components['schemas']['ShortStatus']
+      /** Reject Reason */
+      reject_reason?: string | null
+      /** Source Title */
+      source_title?: string | null
       /** Parts */
       parts?: components['schemas']['ShortPartOut'][]
       /**
@@ -1052,6 +1441,15 @@ export interface components {
        * Format: date-time
        */
       updated_at: string
+    }
+    /** ShortPage */
+    ShortPage: {
+      /** Items */
+      items: components['schemas']['ShortOut'][]
+      /** Next Cursor */
+      next_cursor: string | null
+      /** Total */
+      total: number
     }
     /** ShortPartOut */
     ShortPartOut: {
@@ -1093,6 +1491,21 @@ export interface components {
       | 'published'
       | 'failed'
       | 'dropped'
+    /** ShortWords */
+    ShortWords: {
+      /** Start S */
+      start_s: number
+      /** End S */
+      end_s: number
+      /** Words */
+      words: components['schemas']['WordOut'][]
+      /** Overrides */
+      overrides: {
+        [key: string]: string
+      }
+      /** Sentences */
+      sentences: components['schemas']['ContextSentence'][]
+    }
     /** SourceCreate */
     SourceCreate: {
       /**
@@ -1244,6 +1657,29 @@ export interface components {
      * @enum {string}
      */
     SourceStatus: 'new' | 'downloading' | 'analyzing' | 'ready' | 'failed' | 'skipped'
+    /** StatsOut */
+    StatsOut: {
+      /** Sources */
+      sources: {
+        [key: string]: number
+      }
+      /** Sources Ready */
+      sources_ready: number
+      /** Shorts */
+      shorts: {
+        [key: string]: number
+      }
+      /** Qc */
+      qc: {
+        [key: string]: number
+      }
+      /** Runs */
+      runs: number
+      /** Renders */
+      renders: number
+      /** Active Jobs */
+      active_jobs: number
+    }
     /** SystemOut */
     SystemOut: {
       /** Os */
@@ -1376,6 +1812,19 @@ export interface components {
       settings?: {
         [key: string]: unknown
       }
+    }
+    /** WordOut */
+    WordOut: {
+      /** Key */
+      key: string
+      /** Start */
+      start: number
+      /** End */
+      end: number
+      /** Text */
+      text: string
+      /** Override */
+      override: string | null
     }
   }
   responses: never
@@ -2285,6 +2734,372 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['RenderQueued']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_shorts_api_v1_shorts_get: {
+    parameters: {
+      query?: {
+        status?: components['schemas']['ShortStatus'][] | null
+        run_id?: string | null
+        source_id?: string | null
+        qc?: components['schemas']['QcVerdict'] | null
+        q?: string | null
+        cursor?: string | null
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortPage']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_stats_api_v1_stats_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StatsOut']
+        }
+      }
+    }
+  }
+  review_short_api_v1_shorts__short_id__review_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReviewRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  review_many_api_v1_shorts_review_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkReviewRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BulkReviewOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_short_api_v1_shorts__short_id__export_zip_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  export_run_api_v1_runs__run_id__export_zip_get: {
+    parameters: {
+      query?: {
+        only?: string
+      }
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  short_words_api_v1_shorts__short_id__words_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortWords']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  plan_ai_edit_api_v1_shorts__short_id__ai_edit_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AIEditRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EditOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_edits_api_v1_shorts__short_id__edits_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EditOut'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  apply_edit_api_v1_edits__edit_id__apply_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        edit_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['EditApplied']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_settings_view_api_v1_settings_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsOut']
+        }
+      }
+    }
+  }
+  update_settings_api_v1_settings_patch: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsPatch']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SettingsOut']
         }
       }
       /** @description Validation Error */

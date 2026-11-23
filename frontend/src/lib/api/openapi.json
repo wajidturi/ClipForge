@@ -973,7 +973,7 @@
       "patch": {
         "tags": ["runs"],
         "summary": "Edit Short",
-        "description": "Edit a pick before rendering. Times snap to whole sentences.",
+        "description": "Edit texts or times (not while rendering). Times snap to whole sentences.\n\nChanges to the picture (times, hook, keywords) show up after the next render.",
         "operationId": "edit_short_api_v1_shorts__short_id__patch",
         "parameters": [
           {
@@ -1266,10 +1266,599 @@
           }
         }
       }
+    },
+    "/api/v1/shorts": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "List Shorts",
+        "description": "The Shorts library, newest first. Dropped picks are hidden unless asked for.",
+        "operationId": "list_shorts_api_v1_shorts_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShortStatus"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "qc",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/QcVerdict"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Qc"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "Get Stats",
+        "operationId": "get_stats_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/review": {
+      "post": {
+        "tags": ["shorts"],
+        "summary": "Review Short",
+        "operationId": "review_short_api_v1_shorts__short_id__review_post",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/review": {
+      "post": {
+        "tags": ["shorts"],
+        "summary": "Review Many",
+        "description": "Approve/reject/re-open several Shorts; ones in the wrong state are skipped.",
+        "operationId": "review_many_api_v1_shorts_review_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkReviewOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/export.zip": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "Export Short",
+        "description": "Video, cover, extra sizes and post.txt (title, caption, hashtags, credit).",
+        "operationId": "export_short_api_v1_shorts__short_id__export_zip_get",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{run_id}/export.zip": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "Export Run",
+        "description": "All approved (or all rendered: approved + in review) Shorts of a run.",
+        "operationId": "export_run_api_v1_runs__run_id__export_zip_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(approved|rendered)$",
+              "default": "approved",
+              "title": "Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/words": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "Short Words",
+        "description": "Words in the Short (caption fixes) and the sentences around it (trimming).",
+        "operationId": "short_words_api_v1_shorts__short_id__words_get",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortWords"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/ai-edit": {
+      "post": {
+        "tags": ["shorts"],
+        "summary": "Plan Ai Edit",
+        "description": "Ask the AI for an edit plan. Nothing changes until the plan is applied.",
+        "operationId": "plan_ai_edit_api_v1_shorts__short_id__ai_edit_post",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/edits": {
+      "get": {
+        "tags": ["shorts"],
+        "summary": "List Edits",
+        "operationId": "list_edits_api_v1_shorts__short_id__edits_get",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditOut"
+                  },
+                  "title": "Response List Edits Api V1 Shorts  Short Id  Edits Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/edits/{edit_id}/apply": {
+      "post": {
+        "tags": ["shorts"],
+        "summary": "Apply Edit",
+        "operationId": "apply_edit_api_v1_edits__edit_id__apply_post",
+        "parameters": [
+          {
+            "name": "edit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Edit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditApplied"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": ["settings"],
+        "summary": "Get Settings View",
+        "description": "Settings that can be changed in the app, with their current and default values.",
+        "operationId": "get_settings_view_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["settings"],
+        "summary": "Update Settings",
+        "description": "Save values (validated all-or-nothing) and/or reset keys to their defaults.",
+        "operationId": "update_settings_api_v1_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AIEditRequest": {
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 2,
+            "title": "Instruction"
+          }
+        },
+        "type": "object",
+        "required": ["instruction"],
+        "title": "AIEditRequest"
+      },
       "AIStatusOut": {
         "properties": {
           "provider": {
@@ -1596,6 +2185,78 @@
         "required": ["file"],
         "title": "Body_upload_source_api_v1_sources_upload_post"
       },
+      "BulkReviewOut": {
+        "properties": {
+          "updated": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Updated"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/BulkSkip"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": ["updated", "skipped"],
+        "title": "BulkReviewOut"
+      },
+      "BulkReviewRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["approve", "reject", "reopen"],
+            "title": "Action"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "short_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Short Ids"
+          }
+        },
+        "type": "object",
+        "required": ["action", "short_ids"],
+        "title": "BulkReviewRequest"
+      },
+      "BulkSkip": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": ["id", "reason"],
+        "title": "BulkSkip"
+      },
       "CandidateOut": {
         "properties": {
           "rank": {
@@ -1696,6 +2357,33 @@
         "required": ["name", "ok", "detail", "fix", "required"],
         "title": "CheckOut"
       },
+      "ContextSentence": {
+        "properties": {
+          "start": {
+            "type": "number",
+            "title": "Start"
+          },
+          "end": {
+            "type": "number",
+            "title": "End"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "heat": {
+            "type": "number",
+            "title": "Heat"
+          },
+          "inside": {
+            "type": "boolean",
+            "title": "Inside"
+          }
+        },
+        "type": "object",
+        "required": ["start", "end", "text", "heat", "inside"],
+        "title": "ContextSentence"
+      },
       "DoctorOut": {
         "properties": {
           "ok": {
@@ -1713,6 +2401,123 @@
         "type": "object",
         "required": ["ok", "checks"],
         "title": "DoctorOut"
+      },
+      "EditApplied": {
+        "properties": {
+          "edit": {
+            "$ref": "#/components/schemas/EditOut"
+          },
+          "short": {
+            "$ref": "#/components/schemas/ShortOut"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": ["edit", "short", "job_id"],
+        "title": "EditApplied"
+      },
+      "EditOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "short_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Short Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Plan"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "base_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version Id"
+          },
+          "result_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Version Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "short_id",
+          "kind",
+          "instruction",
+          "plan",
+          "status",
+          "error",
+          "base_version_id",
+          "result_version_id",
+          "created_at"
+        ],
+        "title": "EditOut"
       },
       "GpuOut": {
         "properties": {
@@ -2114,6 +2919,11 @@
         "required": ["id", "name", "example"],
         "title": "PlatformOut"
       },
+      "QcVerdict": {
+        "type": "string",
+        "enum": ["pass", "warn", "fail"],
+        "title": "QcVerdict"
+      },
       "RenderOptions": {
         "properties": {
           "styles": {
@@ -2201,10 +3011,61 @@
               }
             ],
             "title": "Aspects"
+          },
+          "caption_overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption Overrides",
+            "description": "word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["render", "rerender", "manual_edit"]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
           }
         },
         "type": "object",
         "title": "RenderRequest"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["approve", "reject", "reopen"],
+            "title": "Action"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": ["action"],
+        "title": "ReviewRequest"
       },
       "RunCreate": {
         "properties": {
@@ -2552,6 +3413,33 @@
             ],
             "title": "Aspects"
           },
+          "caption_overrides": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption Overrides",
+            "description": "word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["render", "rerender", "manual_edit"]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
           "short_ids": {
             "anyOf": [
               {
@@ -2611,6 +3499,119 @@
         "type": "object",
         "required": ["idx", "start_s", "end_s", "text", "heat", "tags"],
         "title": "SegmentOut"
+      },
+      "SettingField": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["bool", "int", "float", "str", "choice", "list"],
+            "title": "Kind"
+          },
+          "nullable": {
+            "type": "boolean",
+            "title": "Nullable"
+          },
+          "choices": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choices"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "default": {
+            "title": "Default",
+            "description": "value from the environment / built-in default"
+          },
+          "overridden": {
+            "type": "boolean",
+            "title": "Overridden"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "section",
+          "kind",
+          "nullable",
+          "choices",
+          "min",
+          "max",
+          "value",
+          "default",
+          "overridden"
+        ],
+        "title": "SettingField"
+      },
+      "SettingsOut": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/SettingField"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": ["fields"],
+        "title": "SettingsOut"
+      },
+      "SettingsPatch": {
+        "properties": {
+          "values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Values"
+          },
+          "reset": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reset",
+            "description": "keys to return to default"
+          }
+        },
+        "type": "object",
+        "title": "SettingsPatch"
       },
       "ShortDetail": {
         "properties": {
@@ -2711,6 +3712,28 @@
           },
           "status": {
             "$ref": "#/components/schemas/ShortStatus"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
           },
           "parts": {
             "items": {
@@ -2883,6 +3906,28 @@
           "status": {
             "$ref": "#/components/schemas/ShortStatus"
           },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "source_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Title"
+          },
           "parts": {
             "items": {
               "$ref": "#/components/schemas/ShortPartOut"
@@ -2946,6 +3991,36 @@
           "updated_at"
         ],
         "title": "ShortOut"
+      },
+      "ShortPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShortOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": ["items", "next_cursor", "total"],
+        "title": "ShortPage"
       },
       "ShortPartOut": {
         "properties": {
@@ -3073,6 +4148,42 @@
           "dropped"
         ],
         "title": "ShortStatus"
+      },
+      "ShortWords": {
+        "properties": {
+          "start_s": {
+            "type": "number",
+            "title": "Start S"
+          },
+          "end_s": {
+            "type": "number",
+            "title": "End S"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/WordOut"
+            },
+            "type": "array",
+            "title": "Words"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Overrides"
+          },
+          "sentences": {
+            "items": {
+              "$ref": "#/components/schemas/ContextSentence"
+            },
+            "type": "array",
+            "title": "Sentences"
+          }
+        },
+        "type": "object",
+        "required": ["start_s", "end_s", "words", "overrides", "sentences"],
+        "title": "ShortWords"
       },
       "SourceCreate": {
         "properties": {
@@ -3590,6 +4701,50 @@
         "enum": ["new", "downloading", "analyzing", "ready", "failed", "skipped"],
         "title": "SourceStatus"
       },
+      "StatsOut": {
+        "properties": {
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Sources"
+          },
+          "sources_ready": {
+            "type": "integer",
+            "title": "Sources Ready"
+          },
+          "shorts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Shorts"
+          },
+          "qc": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Qc"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "renders": {
+            "type": "integer",
+            "title": "Renders"
+          },
+          "active_jobs": {
+            "type": "integer",
+            "title": "Active Jobs"
+          }
+        },
+        "type": "object",
+        "required": ["sources", "sources_ready", "shorts", "qc", "runs", "renders", "active_jobs"],
+        "title": "StatsOut"
+      },
       "SystemOut": {
         "properties": {
           "os": {
@@ -3991,6 +5146,40 @@
           "created_at"
         ],
         "title": "VersionOut"
+      },
+      "WordOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "start": {
+            "type": "number",
+            "title": "Start"
+          },
+          "end": {
+            "type": "number",
+            "title": "End"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override"
+          }
+        },
+        "type": "object",
+        "required": ["key", "start", "end", "text", "override"],
+        "title": "WordOut"
       }
     }
   }

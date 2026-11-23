@@ -305,6 +305,8 @@ class ShortOut(BaseModel):
     score: float | None
     ai_reason: str | None
     status: ShortStatus
+    reject_reason: str | None = None
+    source_title: str | None = None
     parts: list[ShortPartOut] = Field(default_factory=list)
     has_preview: bool = False
     active: ActiveVersion | None = None
@@ -327,6 +329,20 @@ class RenderRequest(BaseModel):
     style: str | None = Field(default=None, description="caption style id")
     layout: Literal["auto", "crop", "stack", "bubble", "full"] | None = None
     aspects: list[Literal["4:5", "1:1"]] | None = None
+    caption_overrides: dict[str, str] | None = Field(
+        default=None,
+        description="word key (source start time, 2 decimals) -> new text; empty hides the word."
+        " Left out: the previous version's fixes are kept.",
+    )
+    origin: Literal["render", "rerender", "manual_edit"] | None = None
+
+    @model_validator(mode="after")
+    def _limit_overrides(self) -> RenderRequest:
+        if self.caption_overrides and len(self.caption_overrides) > 2000:
+            raise ValueError("too many caption fixes")
+        if self.caption_overrides:
+            self.caption_overrides = {k: v[:40] for k, v in self.caption_overrides.items()}
+        return self
 
 
 class RunRenderRequest(RenderRequest):
@@ -401,3 +417,112 @@ class PlatformOut(BaseModel):
     id: Platform
     name: str
     example: str
+
+
+# ------------------------------------------------------------------ Phase 6: settings
+class SettingField(BaseModel):
+    key: str
+    section: str
+    kind: Literal["bool", "int", "float", "str", "choice", "list"]
+    nullable: bool
+    choices: list[Any] | None
+    min: float | None
+    max: float | None
+    value: Any
+    default: Any = Field(description="value from the environment / built-in default")
+    overridden: bool
+
+
+class SettingsOut(BaseModel):
+    fields: list[SettingField]
+
+
+class SettingsPatch(BaseModel):
+    values: dict[str, Any] = Field(default_factory=dict)
+    reset: list[str] = Field(default_factory=list, description="keys to return to default")
+
+
+# ------------------------------------------------------------------ library & review
+class ShortPage(BaseModel):
+    items: list[ShortOut]
+    next_cursor: uuid.UUID | None
+    total: int
+
+
+class ReviewRequest(BaseModel):
+    action: Literal["approve", "reject", "reopen"]
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class BulkReviewRequest(ReviewRequest):
+    short_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class BulkSkip(BaseModel):
+    id: uuid.UUID
+    reason: str
+
+
+class BulkReviewOut(BaseModel):
+    updated: list[uuid.UUID]
+    skipped: list[BulkSkip]
+
+
+class StatsOut(BaseModel):
+    sources: dict[str, int]
+    sources_ready: int
+    shorts: dict[str, int]
+    qc: dict[str, int]
+    runs: int
+    renders: int
+    active_jobs: int
+
+
+# ------------------------------------------------------------------ studio
+class WordOut(BaseModel):
+    key: str
+    start: float
+    end: float
+    text: str
+    override: str | None
+
+
+class ContextSentence(BaseModel):
+    start: float
+    end: float
+    text: str
+    heat: float
+    inside: bool
+
+
+class ShortWords(BaseModel):
+    start_s: float
+    end_s: float
+    words: list[WordOut]
+    overrides: dict[str, str]
+    sentences: list[ContextSentence]
+
+
+class AIEditRequest(BaseModel):
+    instruction: str = Field(min_length=2, max_length=2000)
+
+
+class EditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    short_id: uuid.UUID
+    kind: str
+    instruction: str | None
+    plan: dict[str, Any]
+    status: str
+    error: str | None
+    base_version_id: uuid.UUID | None
+    result_version_id: uuid.UUID | None
+    created_at: datetime
+
+
+class EditApplied(BaseModel):
+    edit: EditOut
+    short: ShortOut
+    job_id: uuid.UUID | None

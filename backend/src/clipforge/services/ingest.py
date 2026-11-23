@@ -31,6 +31,7 @@ from clipforge.pipeline.ingest.timewin import (
     default_window,
     format_time,
 )
+from clipforge.services import settings_store
 from clipforge.services.sources import original_file, source_dir
 
 log = get_logger(__name__)
@@ -246,7 +247,7 @@ def _ingest_file(ctx: JobContext, src_id: uuid.UUID, settings: Settings) -> dict
 
 # ------------------------------------------------------------------------ entry
 def ingest(ctx: JobContext, source_id: uuid.UUID) -> dict[str, Any]:
-    settings = get_settings()
+    settings = settings_store.effective()
     with get_sessionmaker()() as s:
         src = s.get(Source, source_id)
         if src is None:

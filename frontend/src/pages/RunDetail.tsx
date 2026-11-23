@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router'
 import { Badge, Card, CardHeader, Progress } from '@/components/ui'
@@ -7,6 +7,7 @@ import { PickCard } from '@/features/runs/PickCard'
 import { RenderToolbar, type RenderChoice } from '@/features/runs/RenderToolbar'
 import { useJob } from '@/lib/jobs'
 import { useRun } from '@/lib/runs'
+import { runExportUrl } from '@/lib/shorts'
 import { formatClock } from '@/lib/utils'
 
 type Rejected = { start: number; end: number; hook: string; issues: string[] }
@@ -75,6 +76,22 @@ export function RunDetail() {
               .join(' · ')}
           </p>
         </div>
+        {r.shorts.some((s) => s.status === 'approved') && (
+          <a
+            href={runExportUrl(r.id, 'approved')}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 text-xs font-medium hover:bg-border/60"
+          >
+            <Download size={14} aria-hidden /> {t('runs.exportApproved')}
+          </a>
+        )}
+        {r.shorts.some((s) => s.status === 'review' || s.status === 'approved') && (
+          <a
+            href={runExportUrl(r.id, 'rendered')}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs text-muted hover:bg-surface-2 hover:text-fg"
+          >
+            <Download size={14} aria-hidden /> {t('runs.exportAll')}
+          </a>
+        )}
         <Badge tone={r.status === 'succeeded' ? 'ok' : r.status === 'failed' ? 'danger' : 'info'}>
           {t(`runs.status.${r.status}`)}
         </Badge>

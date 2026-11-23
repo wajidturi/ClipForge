@@ -9,6 +9,7 @@ import { create } from 'zustand'
 import type { Job, Run, Source } from './api/client'
 import { applyJobEvent, jobKeys } from './jobs'
 import { applyRunEvent, applyShortEvent, runKeys } from './runs'
+import { applyShortUpdated, shortKeys } from './shorts'
 import { applySourceDeleted, applySourceEvent, sourceKeys } from './sources'
 
 type ConnState = 'connecting' | 'open' | 'closed'
@@ -49,6 +50,7 @@ export function useServerEvents() {
           void qc.invalidateQueries({ queryKey: jobKeys.all })
           void qc.invalidateQueries({ queryKey: sourceKeys.all })
           void qc.invalidateQueries({ queryKey: runKeys.all })
+          void qc.invalidateQueries({ queryKey: shortKeys.all })
         }
         retry = 0
         setState('open')
@@ -60,7 +62,10 @@ export function useServerEvents() {
           else if (msg.type === 'source.updated') applySourceEvent(qc, msg.source)
           else if (msg.type === 'source.deleted') applySourceDeleted(qc, msg.id)
           else if (msg.type === 'run.updated') applyRunEvent(qc, msg.run)
-          else if (msg.type === 'short.updated') applyShortEvent(qc, msg)
+          else if (msg.type === 'short.updated') {
+            applyShortEvent(qc, msg)
+            applyShortUpdated(qc, msg)
+          }
         } catch {
           /* ignore malformed frames */
         }
