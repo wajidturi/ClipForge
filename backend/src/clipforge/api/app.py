@@ -21,6 +21,7 @@ from clipforge.api import (
     routes_settings,
     routes_shorts,
     routes_sources,
+    routes_studio,
     routes_system,
 )
 from clipforge.api.events import EventHub
@@ -74,6 +75,7 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     api.include_router(routes_runs.router)
     api.include_router(routes_shorts.router)
     api.include_router(routes_settings.router)
+    api.include_router(routes_studio.router)
 
     @api.websocket("/ws")
     async def ws(socket: WebSocket) -> None:

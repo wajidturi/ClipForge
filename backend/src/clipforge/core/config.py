@@ -70,8 +70,10 @@ class Settings(BaseSettings):
     candidates_k: int = Field(default=30, ge=5, le=120)
 
     # Rendering defaults (Phase 6; editable in Settings)
-    render_style: str = "classic"
-    render_layout: Literal["auto", "crop", "stack", "bubble", "full"] = "auto"
+    render_style: str = "template"  # caption preset, or "template" = the template's own
+    render_template: Literal[
+        "auto", "streamer_first", "gameplay_first", "dual_vision", "floating_facecam", "cinematic"
+    ] = "auto"
     render_aspects: list[Literal["4:5", "1:1"]] = Field(default_factory=list)
     auto_render: bool = False  # render picks as soon as a run finishes
 

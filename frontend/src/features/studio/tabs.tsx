@@ -6,8 +6,7 @@ import { Bot, Check, Clapperboard, EyeOff, Loader2, RotateCcw, Sparkles, X } fro
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button } from '@/components/ui'
-import type { Aspect, Layout, ShortDetail, StudioWord } from '@/lib/api/client'
-import { useRenderOptions } from '@/lib/runs'
+import type { ShortDetail, StudioWord } from '@/lib/api/client'
 import {
   useApplyEdit,
   useEdits,
@@ -361,81 +360,6 @@ export function CaptionsTab({ short }: { short: ShortDetail }) {
           <span className="text-xs text-muted">{t('studio.captions.active', { n: fixes })}</span>
         )}
       </div>
-    </div>
-  )
-}
-
-// ------------------------------------------------------------------ Look
-export function LookTab({ short }: { short: ShortDetail }) {
-  const { t } = useTranslation()
-  const opts = useRenderOptions()
-  const render = useRenderOne(short.id)
-  const st = (short.versions?.[0]?.settings ?? {}) as {
-    style?: string
-    layout?: Layout
-    aspects?: Aspect[]
-  }
-  const [style, setStyle] = useState(st.style ?? 'classic')
-  const [layout, setLayout] = useState<Layout>(st.layout ?? 'auto')
-  const [aspects, setAspects] = useState<Aspect[]>(st.aspects ?? [])
-  const select = 'h-9 w-full rounded-lg border border-border bg-surface-2 px-2 text-sm'
-
-  return (
-    <div className="space-y-4">
-      <Field label={t('render.style')}>
-        <select value={style} onChange={(e) => setStyle(e.target.value)} className={select}>
-          {opts.data?.styles.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label={t('render.layout')}>
-        <select
-          value={layout}
-          onChange={(e) => setLayout(e.target.value as Layout)}
-          className={select}
-        >
-          {opts.data?.layouts.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <fieldset className="text-sm">
-        <legend className="mb-1 font-medium">{t('render.extra')}</legend>
-        <div className="flex flex-wrap gap-4">
-          {opts.data?.aspects.map((a) => (
-            <label key={a.id} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                className="size-4 accent-accent"
-                checked={aspects.includes(a.id as Aspect)}
-                onChange={(e) =>
-                  setAspects((x) =>
-                    e.target.checked ? [...x, a.id as Aspect] : x.filter((y) => y !== a.id),
-                  )
-                }
-              />
-              {a.label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      {opts.data && (
-        <p className="text-xs text-muted">{t('render.encoder', { e: opts.data.encoder })}</p>
-      )}
-      <ErrorLine error={render.error} />
-      <Button
-        onClick={() =>
-          render.mutate({ style, layout, aspects, origin: short.active ? 'manual_edit' : 'render' })
-        }
-        disabled={render.isPending || short.status === 'rendering'}
-      >
-        <Clapperboard size={14} aria-hidden /> {short.active ? t('render.again') : t('render.one')}
-      </Button>
     </div>
   )
 }

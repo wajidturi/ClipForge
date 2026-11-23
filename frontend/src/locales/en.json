@@ -161,7 +161,7 @@
   },
   "create": {
     "title": "Create Shorts",
-    "subtitle": "Choose analysed sources and how many moments to pick. Picks can be edited before rendering.",
+    "subtitle": "Choose sources, how to pick moments and a template. ClipForge picks the moments and renders finished Shorts; you review and customise them afterwards.",
     "sources": "Sources ({{n}} selected)",
     "all": "Select all",
     "none": "Clear",
@@ -179,6 +179,10 @@
       "free": {
         "name": "No AI",
         "help": "Picks by signal scores only. Instant, offline, weaker judgement."
+      },
+      "whole": {
+        "name": "Whole clip",
+        "help": "For short clips you uploaded: each clip becomes one Short (longer videos: best moment)."
       }
     },
     "count": "How many Shorts",
@@ -186,7 +190,12 @@
     "topicPh": "Optional: e.g. GTA 6, a name, a game",
     "start": "Pick {{n}} moments",
     "recent": "Recent runs",
-    "runLine": "{{n}} Shorts · {{mode}}"
+    "runLine": "{{n}} Shorts · {{mode}}",
+    "autoRender": "Generate the videos right away",
+    "templateHelp": "Pick a look. You can switch templates and customise everything later.",
+    "startRender": "Pick {{n}} moments and generate",
+    "startWhole_one": "Generate 1 Short",
+    "startWhole_other": "Generate {{count}} Shorts"
   },
   "runs": {
     "title": "Picked moments (asked for {{n}})",
@@ -215,7 +224,8 @@
     "candidates": "All candidates ({{n}})",
     "studio": "Studio",
     "exportApproved": "Export approved (ZIP)",
-    "exportAll": "Export all rendered"
+    "exportAll": "Export all rendered",
+    "customize": "Review & customise"
   },
   "render": {
     "style": "Caption style",
@@ -318,10 +328,10 @@
       "voice": "voice"
     },
     "tabs": {
+      "customize": "Customise",
       "post": "Post",
       "trim": "Trim",
-      "captions": "Captions",
-      "look": "Look",
+      "captions": "Caption words",
       "ai": "AI edit"
     },
     "post": {
@@ -413,16 +423,20 @@
         "cuda": "GPU (CUDA)",
         "cpu": "CPU"
       },
-      "render_layout": {
-        "auto": "Automatic",
-        "crop": "Follow the subject",
-        "stack": "Facecam on top",
-        "bubble": "Round facecam",
-        "full": "Whole picture"
-      },
       "render_aspects": {
         "4:5": "4:5 (Instagram feed)",
         "1:1": "1:1 (square)"
+      },
+      "render_template": {
+        "auto": "Automatic",
+        "streamer_first": "Streamer First",
+        "gameplay_first": "Gameplay First",
+        "dual_vision": "Dual Vision",
+        "floating_facecam": "Floating Facecam",
+        "cinematic": "Cinematic Gaming"
+      },
+      "render_style": {
+        "template": "Template's own"
       }
     },
     "f": {
@@ -480,11 +494,7 @@
       },
       "render_style": {
         "label": "Default caption style",
-        "help": "Used when a render does not choose one."
-      },
-      "render_layout": {
-        "label": "Default layout",
-        "help": "Automatic picks crop, facecam on top or round facecam per Short."
+        "help": "“Template” uses each template's own caption style."
       },
       "render_aspects": {
         "label": "Extra sizes",
@@ -505,6 +515,10 @@
       "default_window_hours": {
         "label": "Part used of longer videos (hours)",
         "help": "Taken from the start unless you choose a time range."
+      },
+      "render_template": {
+        "label": "Default template",
+        "help": "Used when a render does not choose one. Automatic: Streamer First with a facecam, else Cinematic."
       }
     }
   },
@@ -542,5 +556,255 @@
     "next": "Next",
     "skip": "Skip setup",
     "finish": "Finish"
+  },
+  "tpl": {
+    "label": "Template",
+    "choose": "Choose a template",
+    "chooseHelp": "Every pick is rendered with this look. Customise logos, text and effects afterwards.",
+    "auto": {
+      "name": "Automatic",
+      "tagline": "Picks the best layout per clip"
+    }
+  },
+  "cz": {
+    "tabs": {
+      "template": "Template",
+      "elements": "Elements",
+      "add": "Add",
+      "captions": "Captions",
+      "effects": "Effects"
+    },
+    "generate": {
+      "title": "Generate your Short",
+      "body": "Pick a template. ClipForge cuts the moment, frames the facecam and gameplay, adds captions and effects. Then you can customise everything here.",
+      "legacy": "This Short was rendered before templates existed. Generate it once with a template to unlock live editing (the old version is kept).",
+      "go": "Generate video"
+    },
+    "undo": "Undo",
+    "redo": "Redo",
+    "resetTpl": "Template defaults",
+    "resetTplHelp": "Restore this template's elements and settings (your logo and own text stay)",
+    "revert": "Discard changes",
+    "unsaved": "Unsaved changes",
+    "saved": "Matches the rendered video",
+    "render": "Render final video",
+    "view": "Preview",
+    "viewLive": "Live preview",
+    "viewRendered": "Rendered video (v{{n}})",
+    "canvas": "Live preview of the Short",
+    "play": "Play",
+    "pause": "Pause",
+    "time": "Time",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "hint": "Click an element to select it, drag to move, drag the round handle to resize. Space plays, Ctrl+Z undoes.",
+    "camSelected": "Facecam selected: drag it to move, drag the round handle to resize. More options in the Template tab.",
+    "tips": {
+      "title": "Make it yours in a few clicks",
+      "click": "Click any text, sticker or logo in the preview to edit it here.",
+      "drag": "Drag elements to move them; the facecam bubble can be dragged too.",
+      "corner": "Drag the round corner handle to make things bigger or smaller.",
+      "add": "Add your logo, text, emojis and stickers in the “Add” tab.",
+      "keys": "Shortcuts: Space play/pause, Ctrl+Z undo, Ctrl+Shift+Z redo, Delete removes, arrows nudge.",
+      "render": "When it looks right, press “Render final video”. Every render is a new version; nothing is overwritten."
+    },
+    "role": {
+      "hook": "Main title",
+      "reaction": "Reaction caption",
+      "name": "Streamer name",
+      "live": "Live badge",
+      "score": "Score highlight",
+      "divider_label": "Divider label",
+      "subscribe": "Subscribe button",
+      "impact": "Impact word",
+      "logo": "Logo",
+      "user": "Your text"
+    },
+    "tpl": {
+      "layout": "Layout",
+      "split": {
+        "streamer_first": "Facecam height",
+        "gameplay_first": "Gameplay height",
+        "dual_vision": "Top half size"
+      },
+      "cam": "Facecam bubble",
+      "camShow": "Show the facecam",
+      "camDrag": "Tip: drag the bubble in the preview to move it.",
+      "size": "Size",
+      "shape": "Shape",
+      "border": "Border",
+      "borderWidth": "Border width",
+      "glow": "Glow",
+      "divider": "Divider",
+      "style": "Style",
+      "thickness": "Thickness",
+      "tilt": "Tilt",
+      "picture": "Picture",
+      "fit": "Fit",
+      "frame": "Frame",
+      "radius": "Corners",
+      "gap": "Spacing",
+      "background": "Background",
+      "elements": "Template elements",
+      "placeholderHelp": "{hook}, {channel}, {reaction} and {title} fill in automatically from the Short."
+    },
+    "shape": {
+      "circle": "Circle",
+      "rounded": "Rounded",
+      "square": "Square"
+    },
+    "divider": {
+      "ribbon": "Ribbon",
+      "bar": "Bar",
+      "line": "Line",
+      "none": "None"
+    },
+    "fit": {
+      "fill": "Fill the screen",
+      "blur": "Whole picture"
+    },
+    "frame": {
+      "neon": "Neon",
+      "solid": "Solid",
+      "none": "None"
+    },
+    "colors": "Colours",
+    "color1": "Colour",
+    "color2": "Second colour",
+    "hide": "Hide",
+    "show": "Show",
+    "end": "end",
+    "remove": "Remove",
+    "elements": {
+      "title": "Elements ({{n}})",
+      "empty": "No elements yet. Add text, a logo or stickers in the Add tab."
+    },
+    "add": {
+      "text": "Text",
+      "headline": "Headline",
+      "label": "Small label",
+      "newText": "YOUR TEXT",
+      "newSmall": "Your label",
+      "logo": "Logo & images",
+      "upload": "Upload logo",
+      "deleteImage": "Delete this image",
+      "stickers": "Gaming stickers",
+      "stickerHelp": "Stickers appear for 3 seconds from the current time; change it under Timing.",
+      "emoji": "Emojis"
+    },
+    "cap": {
+      "title": "Captions",
+      "show": "Show captions",
+      "preset": {
+        "gaming": "Gaming",
+        "classic": "Classic",
+        "word": "One word",
+        "box": "Box",
+        "karaoke": "Karaoke",
+        "minimal": "Minimal"
+      },
+      "text": "Text",
+      "position": "Position",
+      "words": "Words at once",
+      "mode": "Highlight",
+      "modes": {
+        "highlight": "Spoken word",
+        "single": "One word",
+        "karaoke": "Karaoke fill",
+        "plain": "None"
+      },
+      "upper": "CAPITALS",
+      "pop": "Pop in",
+      "color": "Text",
+      "highlight": "Spoken word",
+      "keyword": "Keywords",
+      "outline": "Outline",
+      "outlineWidth": "Outline width",
+      "box": "Box behind",
+      "fixHelp": "To fix a misheard word, use the “Caption words” tab."
+    },
+    "fx": {
+      "zoom": "Zoom punch",
+      "amount": "Strength",
+      "zoomHelp": "Zooms into the gameplay on the loudest moments automatically.",
+      "moments": "Effect moments",
+      "shake": "Screen shake",
+      "flash": "Flash",
+      "glitch": "Glitch",
+      "speed_lines": "Speed lines",
+      "vignette": "Vignette",
+      "letterbox": "Cinema bars",
+      "addMoment": "Add moment at {{t}}s",
+      "color": "Colour grade",
+      "grade": {
+        "none": "Natural",
+        "vivid": "Vivid",
+        "cinematic": "Cinematic"
+      }
+    },
+    "forward": "Bring forward",
+    "backward": "Send backward",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "text": "Text",
+    "style": "Style",
+    "font": "Font",
+    "size": "Size",
+    "textColor": "Text colour",
+    "strokeColor": "Outline colour",
+    "stroke": "Outline",
+    "textStyle": "Letters",
+    "shadow": "Shadow",
+    "shapeLabel": "Background",
+    "shapes": {
+      "none": "None",
+      "box": "Box",
+      "pill": "Pill",
+      "tag": "Tag",
+      "ribbon": "Ribbon",
+      "burst": "Comic burst"
+    },
+    "shapeColors": "Background colours",
+    "shapeFill": "Fill",
+    "shapeOutline": "Outline",
+    "wrap": "Max width",
+    "placement": "Placement",
+    "width": "Width",
+    "scale": "Scale",
+    "rotation": "Rotation",
+    "opacity": "Opacity",
+    "timing": "Timing",
+    "from": "From",
+    "until": "Until",
+    "startNow": "Start here",
+    "endNow": "End here",
+    "wholeVideo": "Whole video",
+    "animation": "Animation",
+    "animIn": "Entrance",
+    "animLoop": "While visible",
+    "animOut": "Exit",
+    "anims": {
+      "none": "None",
+      "fade": "Fade",
+      "pop": "Pop",
+      "zoom": "Zoom in",
+      "slide_up": "Slide up",
+      "slide_down": "Slide down",
+      "slide_left": "Slide in from right",
+      "slide_right": "Slide in from left"
+    },
+    "loops": {
+      "none": "Still",
+      "pulse": "Pulse",
+      "shake": "Shake",
+      "float": "Float"
+    },
+    "outs": {
+      "fade": "Fade out",
+      "none": "Cut"
+    },
+    "selected": "Selected element",
+    "done": "Done",
+    "noCam": "No facecam was found in this clip, so {{name}} is not available. Cinematic Gaming is used instead."
   }
 }

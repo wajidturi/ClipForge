@@ -14,6 +14,7 @@ from clipforge.api.schemas import (
     ActiveVersion,
     AIStatusOut,
     CandidateOut,
+    FontOut,
     OptionOut,
     RenderOptions,
     RenderQueued,
@@ -26,11 +27,13 @@ from clipforge.api.schemas import (
     ShortOut,
     ShortPartOut,
     ShortPatch,
+    TemplateOut,
     VersionOut,
 )
 from clipforge.db.enums import AssetKind, AssetOwner, ShortStatus
 from clipforge.db.models import Candidate, Job, MediaAsset, Run, Short, ShortPart, ShortVersion
-from clipforge.pipeline.render import captions, compose
+from clipforge.pipeline.render import captions, compose, fonts
+from clipforge.pipeline.render import scene as sc
 from clipforge.services import preview as preview_svc
 from clipforge.services import runs as runs_svc
 from clipforge.services import settings_store
@@ -103,6 +106,7 @@ def create_run(body: RunCreate, db: DB) -> RunOut:
             pick_mode=body.pick_mode,
             topic=body.topic,
             ai_model=body.ai_model,
+            render=body.render.model_dump() if body.render else None,
         )
     except runs_svc.RunInputError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
@@ -193,21 +197,25 @@ async def ai_status() -> AIStatusOut:
 
 
 # ------------------------------------------------------------------ rendering
-LAYOUT_LABELS = {
-    "auto": "Automatic (recommended)",
-    "crop": "Follow the subject (9:16 crop)",
-    "stack": "Facecam on top, game below",
-    "bubble": "Game full screen, round facecam",
-    "full": "Whole picture over a blurred background",
-}
-
-
 @router.get("/render/options", response_model=RenderOptions)
 async def render_options() -> RenderOptions:
+    """Templates, caption presets, fonts and sizes for the template picker and studio."""
     enc = await run_in_threadpool(compose.video_encoder)
     return RenderOptions(
         styles=[OptionOut(id=k, label=s.label) for k, s in captions.STYLES.items()],
-        layouts=[OptionOut(id=k, label=v) for k, v in LAYOUT_LABELS.items()],
+        templates=[
+            TemplateOut(
+                id=t.id,
+                name=t.name,
+                tagline=t.tagline,
+                description=t.description,
+                needs_cam=t.needs_cam,
+                controls=list(t.controls),
+            )
+            for t in sc.TEMPLATES.values()
+        ],
+        fonts=[FontOut(id=f.id, label=f.label, category=f.category) for f in fonts.available()],
+        caption_presets={k: sc.Captions(**v) for k, v in sc.caption_presets().items()},
         aspects=[
             OptionOut(id="4:5", label="4:5 (Instagram feed)"),
             OptionOut(id="1:1", label="1:1 (square)"),

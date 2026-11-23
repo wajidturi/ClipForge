@@ -399,7 +399,10 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Render Options */
+    /**
+     * Render Options
+     * @description Templates, caption presets, fonts and sizes for the template picker and studio.
+     */
     get: operations['render_options_api_v1_render_options_get']
     put?: never
     post?: never
@@ -655,6 +658,105 @@ export interface paths {
     patch: operations['update_settings_api_v1_settings_patch']
     trace?: never
   }
+  '/api/v1/shorts/{short_id}/studio': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Studio
+     * @description The active version's scene and everything the live preview needs.
+     */
+    get: operations['studio_api_v1_shorts__short_id__studio_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/{short_id}/scene/template': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Switch Template
+     * @description Defaults of another template for this Short, keeping the user's own layers
+     *     (logo, text, emojis) and caption choices. Nothing is saved until a render.
+     */
+    post: operations['switch_template_api_v1_shorts__short_id__scene_template_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/fonts/{font_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Font File
+     * @description The exact font files the renderer uses, so the preview matches the export.
+     */
+    get: operations['font_file_api_v1_fonts__font_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/images': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Images
+     * @description Uploaded logos and images (shown at /media/{id}).
+     */
+    get: operations['list_images_api_v1_images_get']
+    put?: never
+    /** Upload Image */
+    post: operations['upload_image_api_v1_images_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/images/{image_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Delete Image */
+    delete: operations['delete_image_api_v1_images__image_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -745,6 +847,7 @@ export interface components {
       | 'sheet'
       | 'voice'
       | 'words'
+      | 'image'
     /** AssetOut */
     AssetOut: {
       /**
@@ -768,6 +871,11 @@ export interface components {
        * Format: date-time
        */
       created_at: string
+    }
+    /** Body_upload_image_api_v1_images_post */
+    Body_upload_image_api_v1_images_post: {
+      /** File */
+      file: string
     }
     /** Body_upload_source_api_v1_sources_upload_post */
     Body_upload_source_api_v1_sources_upload_post: {
@@ -810,6 +918,53 @@ export interface components {
       /** Reason */
       reason: string
     }
+    /**
+     * Cam
+     * @description Floating facecam (template ``floating_facecam``).
+     */
+    Cam: {
+      /**
+       * X
+       * @default 0.27
+       */
+      x?: number
+      /**
+       * Y
+       * @default 0.78
+       */
+      y?: number
+      /**
+       * Size
+       * @default 0.38
+       */
+      size?: number
+      /**
+       * Shape
+       * @default circle
+       * @enum {string}
+       */
+      shape?: 'circle' | 'rounded' | 'square'
+      /**
+       * Border Color
+       * @default #A78BFA
+       */
+      border_color?: string
+      /**
+       * Border Width
+       * @default 8
+       */
+      border_width?: number
+      /**
+       * Glow
+       * @default 22
+       */
+      glow?: number
+      /**
+       * Visible
+       * @default true
+       */
+      visible?: boolean
+    }
     /** CandidateOut */
     CandidateOut: {
       /** Rank */
@@ -831,6 +986,83 @@ export interface components {
       head_text: string | null
       /** Tail Text */
       tail_text: string | null
+    }
+    /** Captions */
+    Captions: {
+      /**
+       * Visible
+       * @default true
+       */
+      visible?: boolean
+      /**
+       * Preset
+       * @default classic
+       */
+      preset?: string
+      /**
+       * Font
+       * @default impact
+       */
+      font?: string
+      /**
+       * Size
+       * @default 80
+       */
+      size?: number
+      /**
+       * Color
+       * @default #FFFFFF
+       */
+      color?: string
+      /**
+       * Highlight
+       * @default #FFE135
+       */
+      highlight?: string
+      /**
+       * Keyword
+       * @default #3DDC84
+       */
+      keyword?: string
+      /**
+       * Outline Color
+       * @default #000000
+       */
+      outline_color?: string
+      /**
+       * Outline
+       * @default 6
+       */
+      outline?: number
+      /** Box */
+      box?: string | null
+      /**
+       * Upper
+       * @default true
+       */
+      upper?: boolean
+      /**
+       * Words
+       * @default 3
+       */
+      words?: number
+      /**
+       * Mode
+       * @default highlight
+       * @enum {string}
+       */
+      mode?: 'highlight' | 'single' | 'karaoke' | 'plain'
+      /**
+       * Y
+       * @default 0.7
+       */
+      y?: number
+      /**
+       * Animation
+       * @default pop
+       * @enum {string}
+       */
+      animation?: 'none' | 'pop'
     }
     /** CheckOut */
     CheckOut: {
@@ -857,6 +1089,69 @@ export interface components {
       heat: number
       /** Inside */
       inside: boolean
+    }
+    /**
+     * CutOut
+     * @description What the studio's live preview needs about the prepared cut.
+     */
+    CutOut: {
+      /** Key */
+      key: string
+      /**
+       * Preview Asset Id
+       * Format: uuid
+       */
+      preview_asset_id: string
+      /** Src W */
+      src_w: number
+      /** Src H */
+      src_h: number
+      /** Duration */
+      duration: number
+      /** Cam */
+      cam: number[] | null
+      /** Targets */
+      targets: [number, number | null][]
+      /** Cuts */
+      cuts: number[]
+      /** Zoom Peaks */
+      zoom_peaks: number[]
+      /**
+       * Words
+       * @description caption words: start, end (output s), text, key
+       */
+      words: [number, number, string, string][]
+      /** Reaction */
+      reaction: string | null
+    }
+    /** Divider */
+    Divider: {
+      /**
+       * Style
+       * @default ribbon
+       * @enum {string}
+       */
+      style?: 'ribbon' | 'bar' | 'line' | 'none'
+      /**
+       * Color
+       * @default #7C3AED
+       */
+      color?: string
+      /**
+       * Color2
+       * @default #22D3EE
+       */
+      color2?: string
+      /**
+       * Thickness
+       * @default 96
+       */
+      thickness?: number
+      /**
+       * Tilt
+       * @default 4
+       */
+      tilt?: number
     }
     /** DoctorOut */
     DoctorOut: {
@@ -906,6 +1201,110 @@ export interface components {
        */
       created_at: string
     }
+    /** Effects */
+    Effects: {
+      /**
+       * Zoom Punch
+       * @default true
+       */
+      zoom_punch?: boolean
+      /**
+       * Zoom Amount
+       * @default 0.1
+       */
+      zoom_amount?: number
+      /**
+       * Shake
+       * @default false
+       */
+      shake?: boolean
+      /**
+       * Flash
+       * @default false
+       */
+      flash?: boolean
+      /**
+       * Glitch
+       * @default false
+       */
+      glitch?: boolean
+      /**
+       * Speed Lines
+       * @default false
+       */
+      speed_lines?: boolean
+      /**
+       * Vignette
+       * @default false
+       */
+      vignette?: boolean
+      /**
+       * Letterbox
+       * @default false
+       */
+      letterbox?: boolean
+      /**
+       * Color
+       * @default vivid
+       * @enum {string}
+       */
+      color?: 'none' | 'vivid' | 'cinematic'
+      /** Moments */
+      moments?: number[]
+    }
+    /** FontOut */
+    FontOut: {
+      /** Id */
+      id: string
+      /** Label */
+      label: string
+      /** Category */
+      category: string
+    }
+    /** Frame */
+    Frame: {
+      /**
+       * Style
+       * @default neon
+       * @enum {string}
+       */
+      style?: 'neon' | 'solid' | 'none'
+      /**
+       * Color
+       * @default #8B5CF6
+       */
+      color?: string
+      /**
+       * Color2
+       * @default #22D3EE
+       */
+      color2?: string
+      /**
+       * Width
+       * @default 6
+       */
+      width?: number
+      /**
+       * Radius
+       * @default 34
+       */
+      radius?: number
+      /**
+       * Glow
+       * @default 18
+       */
+      glow?: number
+      /**
+       * Gap
+       * @default 14
+       */
+      gap?: number
+      /**
+       * Background
+       * @default #0B0A14
+       */
+      background?: string
+    }
     /** GpuOut */
     GpuOut: {
       /** Name */
@@ -932,6 +1331,20 @@ export interface components {
       version: string
       /** Mode */
       mode: string
+    }
+    /** ImageOut */
+    ImageOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string
+      /** Name */
+      name: string | null
+      /** Width */
+      width: number | null
+      /** Height */
+      height: number | null
     }
     /** JobCreate */
     JobCreate: {
@@ -1024,6 +1437,150 @@ export interface components {
       /** Description */
       description: string
     }
+    /** Layer */
+    Layer: {
+      /** Id */
+      id?: string
+      /**
+       * Kind
+       * @default text
+       * @enum {string}
+       */
+      kind?: 'text' | 'emoji' | 'image'
+      /** Role */
+      role?: string | null
+      /**
+       * Name
+       * @default
+       */
+      name?: string
+      /**
+       * Visible
+       * @default true
+       */
+      visible?: boolean
+      /**
+       * X
+       * @default 0.5
+       */
+      x?: number
+      /**
+       * Y
+       * @default 0.5
+       */
+      y?: number
+      /**
+       * Scale
+       * @default 1
+       */
+      scale?: number
+      /**
+       * Rotation
+       * @default 0
+       */
+      rotation?: number
+      /**
+       * Opacity
+       * @default 1
+       */
+      opacity?: number
+      /**
+       * Start
+       * @default 0
+       */
+      start?: number
+      /** End */
+      end?: number | null
+      /**
+       * Anim In
+       * @default pop
+       * @enum {string}
+       */
+      anim_in?:
+        'none' | 'fade' | 'pop' | 'zoom' | 'slide_up' | 'slide_down' | 'slide_left' | 'slide_right'
+      /**
+       * Anim Out
+       * @default fade
+       * @enum {string}
+       */
+      anim_out?: 'none' | 'fade'
+      /**
+       * Loop
+       * @default none
+       * @enum {string}
+       */
+      loop?: 'none' | 'pulse' | 'shake' | 'float'
+      /**
+       * Text
+       * @default
+       */
+      text?: string
+      /**
+       * Font
+       * @default impact
+       */
+      font?: string
+      /**
+       * Size
+       * @default 80
+       */
+      size?: number
+      /**
+       * Color
+       * @default #FFFFFF
+       */
+      color?: string
+      /**
+       * Stroke Color
+       * @default #000000
+       */
+      stroke_color?: string
+      /**
+       * Stroke
+       * @default 6
+       */
+      stroke?: number
+      /**
+       * Shadow
+       * @default true
+       */
+      shadow?: boolean
+      /**
+       * Italic
+       * @default false
+       */
+      italic?: boolean
+      /**
+       * Upper
+       * @default true
+       */
+      upper?: boolean
+      /**
+       * Max Width
+       * @default 0.86
+       */
+      max_width?: number
+      /**
+       * Shape
+       * @default none
+       * @enum {string}
+       */
+      shape?: 'none' | 'box' | 'pill' | 'tag' | 'ribbon' | 'burst'
+      /**
+       * Shape Color
+       * @default #7C3AED
+       */
+      shape_color?: string
+      /** Shape Stroke */
+      shape_stroke?: string | null
+      /** Asset Id */
+      asset_id?: string | null
+      /**
+       * Width
+       * @default 0.25
+       */
+      width?: number
+    }
     /** Marker */
     Marker: {
       /** Type */
@@ -1075,12 +1632,35 @@ export interface components {
      * @enum {string}
      */
     QcVerdict: 'pass' | 'warn' | 'fail'
+    /** Regions */
+    Regions: {
+      /**
+       * Split
+       * @default 0.42
+       */
+      split?: number
+      frame?: components['schemas']['Frame']
+      cam?: components['schemas']['Cam']
+      divider?: components['schemas']['Divider']
+      /**
+       * Fit
+       * @default fill
+       * @enum {string}
+       */
+      fit?: 'fill' | 'blur'
+    }
     /** RenderOptions */
     RenderOptions: {
       /** Styles */
       styles: components['schemas']['OptionOut'][]
-      /** Layouts */
-      layouts: components['schemas']['OptionOut'][]
+      /** Templates */
+      templates: components['schemas']['TemplateOut'][]
+      /** Fonts */
+      fonts: components['schemas']['FontOut'][]
+      /** Caption Presets */
+      caption_presets: {
+        [key: string]: components['schemas']['Captions']
+      }
       /** Aspects */
       aspects: components['schemas']['OptionOut'][]
       /** Encoder */
@@ -1094,11 +1674,30 @@ export interface components {
     /** RenderRequest */
     RenderRequest: {
       /**
+       * Template
+       * @description look of the Short; auto = by facecam detection
+       */
+      template?:
+        | (
+            | 'auto'
+            | 'streamer_first'
+            | 'gameplay_first'
+            | 'dual_vision'
+            | 'floating_facecam'
+            | 'cinematic'
+          )
+        | null
+      /** @description the full look from the studio (overrides template/style) */
+      scene?: components['schemas']['Scene'] | null
+      /**
        * Style
-       * @description caption style id
+       * @description caption preset id
        */
       style?: string | null
-      /** Layout */
+      /**
+       * Layout
+       * @description deprecated: use template
+       */
       layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
@@ -1134,10 +1733,13 @@ export interface components {
       n?: number
       /**
        * Pick Mode
+       * @description whole = each (short) source becomes one Short
        * @default smart
        * @enum {string}
        */
-      pick_mode?: 'free' | 'smart' | 'deep'
+      pick_mode?: 'free' | 'smart' | 'deep' | 'whole'
+      /** @description render the picks right away with this template */
+      render?: components['schemas']['RunRender'] | null
       /**
        * Topic
        * @description e.g. a game or a name
@@ -1234,14 +1836,50 @@ export interface components {
       /** Finished At */
       finished_at: string | null
     }
+    /** RunRender */
+    RunRender: {
+      /**
+       * Template
+       * @default auto
+       * @enum {string}
+       */
+      template?:
+        | 'auto'
+        | 'streamer_first'
+        | 'gameplay_first'
+        | 'dual_vision'
+        | 'floating_facecam'
+        | 'cinematic'
+      /** Aspects */
+      aspects?: ('4:5' | '1:1')[]
+    }
     /** RunRenderRequest */
     RunRenderRequest: {
       /**
+       * Template
+       * @description look of the Short; auto = by facecam detection
+       */
+      template?:
+        | (
+            | 'auto'
+            | 'streamer_first'
+            | 'gameplay_first'
+            | 'dual_vision'
+            | 'floating_facecam'
+            | 'cinematic'
+          )
+        | null
+      /** @description the full look from the studio (overrides template/style) */
+      scene?: components['schemas']['Scene'] | null
+      /**
        * Style
-       * @description caption style id
+       * @description caption preset id
        */
       style?: string | null
-      /** Layout */
+      /**
+       * Layout
+       * @description deprecated: use template
+       */
       layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
@@ -1265,6 +1903,26 @@ export interface components {
      * @enum {string}
      */
     RunStatus: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+    /** Scene */
+    Scene: {
+      /**
+       * V
+       * @default 1
+       */
+      v?: number
+      /**
+       * Template
+       * @default streamer_first
+       * @enum {string}
+       */
+      template?:
+        'streamer_first' | 'gameplay_first' | 'dual_vision' | 'floating_facecam' | 'cinematic'
+      regions?: components['schemas']['Regions']
+      captions?: components['schemas']['Captions']
+      effects?: components['schemas']['Effects']
+      /** Layers */
+      layers?: components['schemas']['Layer'][]
+    }
     /** SegmentOut */
     SegmentOut: {
       /** Idx */
@@ -1680,6 +2338,27 @@ export interface components {
       /** Active Jobs */
       active_jobs: number
     }
+    /** StudioData */
+    StudioData: {
+      /** Version Id */
+      version_id: string | null
+      scene: components['schemas']['Scene']
+      /** Note */
+      note: string | null
+      /**
+       * Values
+       * @description placeholder values ({hook}, ...)
+       */
+      values: {
+        [key: string]: string | null
+      }
+      /** Caption Overrides */
+      caption_overrides: {
+        [key: string]: string
+      }
+      /** @description null: render once to enable live editing */
+      cut: components['schemas']['CutOut'] | null
+    }
     /** SystemOut */
     SystemOut: {
       /** Os */
@@ -1707,6 +2386,37 @@ export interface components {
        * @enum {string}
        */
       database: 'sqlite' | 'postgresql'
+    }
+    /** TemplateOut */
+    TemplateOut: {
+      /** Id */
+      id: string
+      /** Name */
+      name: string
+      /** Tagline */
+      tagline: string
+      /** Description */
+      description: string
+      /** Needs Cam */
+      needs_cam: boolean
+      /** Controls */
+      controls: string[]
+    }
+    /** TemplateSwitch */
+    TemplateSwitch: {
+      /**
+       * Template
+       * @enum {string}
+       */
+      template:
+        | 'auto'
+        | 'streamer_first'
+        | 'gameplay_first'
+        | 'dual_vision'
+        | 'floating_facecam'
+        | 'cinematic'
+      /** @description current scene (user layers are kept) */
+      scene?: components['schemas']['Scene'] | null
     }
     /**
      * TimelineOut
@@ -3101,6 +3811,183 @@ export interface operations {
         content: {
           'application/json': components['schemas']['SettingsOut']
         }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  studio_api_v1_shorts__short_id__studio_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['StudioData']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  switch_template_api_v1_shorts__short_id__scene_template_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        short_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TemplateSwitch']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['Scene']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  font_file_api_v1_fonts__font_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        font_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_images_api_v1_images_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ImageOut'][]
+        }
+      }
+    }
+  }
+  upload_image_api_v1_images_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_upload_image_api_v1_images_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ImageOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_image_api_v1_images__image_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        image_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
       }
       /** @description Validation Error */
       422: {

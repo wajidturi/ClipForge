@@ -105,6 +105,7 @@ export function refreshShort(qc: QueryClient, id: string | null, runId?: string 
     void qc.invalidateQueries({ queryKey: shortKeys.detail(id) })
     void qc.invalidateQueries({ queryKey: shortKeys.words(id) })
     void qc.invalidateQueries({ queryKey: shortKeys.edits(id) })
+    void qc.invalidateQueries({ queryKey: [...shortKeys.all, 'studio', id] })
   }
   if (runId) void qc.invalidateQueries({ queryKey: runKeys.detail(runId) })
 }

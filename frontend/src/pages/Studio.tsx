@@ -1,16 +1,17 @@
-import { ArrowLeft, Check, Download, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, Check, Download, Palette, RotateCcw, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { Button, Card, Progress } from '@/components/ui'
 import { QcBadge, StatusBadge } from '@/features/shorts/ShortTile'
-import { AIEditTab, CaptionsTab, LookTab, PostTab, TrimTab } from '@/features/studio/tabs'
+import { Customizer } from '@/features/studio/Customizer'
+import { AIEditTab, CaptionsTab, PostTab, TrimTab } from '@/features/studio/tabs'
 import { mediaUrl, type ShortVersion } from '@/lib/api/client'
 import { useJob } from '@/lib/jobs'
 import { exportUrl, useReview, useShort } from '@/lib/shorts'
 import { cn, formatClock } from '@/lib/utils'
 
-const TABS = ['post', 'trim', 'captions', 'look', 'ai'] as const
+const TABS = ['customize', 'post', 'trim', 'captions', 'ai'] as const
 type Tab = (typeof TABS)[number]
 
 function VersionList({
@@ -62,7 +63,7 @@ export function Studio() {
   const [params, setParams] = useSearchParams()
   const tab: Tab = (TABS as readonly string[]).includes(params.get('tab') ?? '')
     ? (params.get('tab') as Tab)
-    : 'post'
+    : 'customize'
   const [viewing, setViewing] = useState<string | null>(null)
   const job = useJob(s?.status === 'rendering' ? s.render_job_id : null)
   const review = useReview()
@@ -77,7 +78,7 @@ export function Studio() {
   const part = s.parts?.[0]
 
   return (
-    <div className="mx-auto max-w-6xl px-8 py-8">
+    <div className={cn('mx-auto px-8 py-8', tab === 'customize' ? 'max-w-[96rem]' : 'max-w-6xl')}>
       <Link
         to={s.run_id ? `/runs/${s.run_id}` : '/shorts'}
         className="mb-4 inline-flex items-center gap-1 text-xs text-muted hover:text-fg"
@@ -141,96 +142,98 @@ export function Studio() {
       </header>
       {review.error && <p className="mb-4 text-sm text-danger">{review.error.message}</p>}
 
-      <div className="grid gap-6 md:grid-cols-[minmax(0,20rem)_1fr]">
-        <div className="space-y-4">
-          {s.status === 'rendering' && (
-            <Card className="space-y-1.5 p-3">
-              <Progress value={job.data?.progress ?? 0} />
-              <p className="text-xs text-muted">{job.data?.step ?? t('render.queued')}</p>
-            </Card>
-          )}
-          {shown?.mp4_asset_id ? (
-            <video
-              key={shown.id}
-              controls
-              playsInline
-              poster={shown.cover_asset_id ? mediaUrl(shown.cover_asset_id) : undefined}
-              src={mediaUrl(shown.mp4_asset_id)}
-              className="aspect-[9/16] w-full rounded-xl bg-black object-contain"
-              aria-label={t('render.player')}
-            />
-          ) : (
-            <div className="flex aspect-[9/16] items-center justify-center rounded-xl bg-surface-2 px-6 text-center text-sm text-muted">
-              {t('studio.notRendered')}
-            </div>
-          )}
-          {shown && (
-            <div className="space-y-1 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <QcBadge verdict={shown.qc_verdict} />
-                <span className="text-muted">
-                  v{shown.version_no}
-                  {shown.duration_s ? ` · ${Math.round(shown.duration_s)}s` : ''}
-                </span>
-                {shown.mp4_asset_id && (
-                  <a
-                    href={mediaUrl(shown.mp4_asset_id)}
-                    download
-                    className="ml-auto text-accent hover:underline"
-                  >
-                    MP4
-                  </a>
+      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border" role="tablist">
+        {TABS.map((k) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={k === tab}
+            onClick={() => setParams({ tab: k }, { replace: true })}
+            className={cn(
+              '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm whitespace-nowrap transition',
+              k === tab
+                ? 'border-accent font-medium text-fg'
+                : 'border-transparent text-muted hover:text-fg',
+            )}
+          >
+            {k === 'customize' && <Palette size={14} aria-hidden />}
+            {t(`studio.tabs.${k}`)}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'customize' ? (
+        <Customizer short={s} />
+      ) : (
+        <div className="grid gap-6 md:grid-cols-[minmax(0,20rem)_1fr]">
+          <div className="space-y-4">
+            {s.status === 'rendering' && (
+              <Card className="space-y-1.5 p-3">
+                <Progress value={job.data?.progress ?? 0} />
+                <p className="text-xs text-muted">{job.data?.step ?? t('render.queued')}</p>
+              </Card>
+            )}
+            {shown?.mp4_asset_id ? (
+              <video
+                key={shown.id}
+                controls
+                playsInline
+                poster={shown.cover_asset_id ? mediaUrl(shown.cover_asset_id) : undefined}
+                src={mediaUrl(shown.mp4_asset_id)}
+                className="aspect-[9/16] w-full rounded-xl bg-black object-contain"
+                aria-label={t('render.player')}
+              />
+            ) : (
+              <div className="flex aspect-[9/16] items-center justify-center rounded-xl bg-surface-2 px-6 text-center text-sm text-muted">
+                {t('studio.notRendered')}
+              </div>
+            )}
+            {shown && (
+              <div className="space-y-1 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <QcBadge verdict={shown.qc_verdict} />
+                  <span className="text-muted">
+                    v{shown.version_no}
+                    {shown.duration_s ? ` · ${Math.round(shown.duration_s)}s` : ''}
+                  </span>
+                  {shown.mp4_asset_id && (
+                    <a
+                      href={mediaUrl(shown.mp4_asset_id)}
+                      download
+                      className="ml-auto text-accent hover:underline"
+                    >
+                      MP4
+                    </a>
+                  )}
+                </div>
+                {(shown.qc_reasons?.length ?? 0) > 0 && (
+                  <ul className="text-warn">
+                    {shown.qc_reasons!.map((r, i) => (
+                      <li key={i}>• {r}</li>
+                    ))}
+                  </ul>
                 )}
               </div>
-              {(shown.qc_reasons?.length ?? 0) > 0 && (
-                <ul className="text-warn">
-                  {shown.qc_reasons!.map((r, i) => (
-                    <li key={i}>• {r}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          <VersionList
-            versions={s.versions ?? []}
-            current={shown?.id}
-            activeId={s.active?.id}
-            onPick={setViewing}
-          />
-        </div>
+            )}
+            <VersionList
+              versions={s.versions ?? []}
+              current={shown?.id}
+              activeId={s.active?.id}
+              onPick={setViewing}
+            />
+          </div>
 
-        <Card className="min-w-0">
-          <div
-            className="flex gap-1 overflow-x-auto border-b border-border px-3 pt-2"
-            role="tablist"
-          >
-            {TABS.map((k) => (
-              <button
-                key={k}
-                role="tab"
-                aria-selected={k === tab}
-                onClick={() => setParams({ tab: k }, { replace: true })}
-                className={cn(
-                  '-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap transition',
-                  k === tab
-                    ? 'border-accent font-medium text-fg'
-                    : 'border-transparent text-muted hover:text-fg',
-                )}
-              >
-                {t(`studio.tabs.${k}`)}
-              </button>
-            ))}
-          </div>
-          <div className="p-5" role="tabpanel">
-            {/* key: start from the saved values again after any server-side change */}
-            {tab === 'post' && <PostTab key={s.updated_at} short={s} />}
-            {tab === 'trim' && <TrimTab key={s.updated_at} short={s} />}
-            {tab === 'captions' && <CaptionsTab short={s} />}
-            {tab === 'look' && <LookTab short={s} />}
-            {tab === 'ai' && <AIEditTab short={s} />}
-          </div>
-        </Card>
-      </div>
+          <Card className="min-w-0">
+            <div className="p-5" role="tabpanel">
+              {/* key: start from the saved values again after any server-side change */}
+              {tab === 'post' && <PostTab key={s.updated_at} short={s} />}
+              {tab === 'trim' && <TrimTab key={s.updated_at} short={s} />}
+              {tab === 'captions' && <CaptionsTab short={s} />}
+              {tab === 'ai' && <AIEditTab short={s} />}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

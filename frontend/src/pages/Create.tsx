@@ -1,15 +1,16 @@
-import { Bot, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Film, Loader2, Sparkles, Wand2, XCircle } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { Badge, Button, Card, CardHeader } from '@/components/ui'
-import type { PickMode } from '@/lib/api/client'
-import { useAIStatus, useCreateRun, useRuns } from '@/lib/runs'
+import { TemplatePicker } from '@/features/studio/TemplatePicker'
+import type { PickMode, TemplateChoice } from '@/lib/api/client'
+import { useAIStatus, useCreateRun, useRenderOptions, useRuns } from '@/lib/runs'
 import { useSources } from '@/lib/sources'
 import { cn, formatClock } from '@/lib/utils'
 import { PageHeader } from './Dashboard'
 
-const MODES: PickMode[] = ['smart', 'deep', 'free']
+const MODES: PickMode[] = ['smart', 'deep', 'free', 'whole']
 
 function AIStatusLine() {
   const ai = useAIStatus()
@@ -34,6 +35,9 @@ export function Create() {
   const [n, setN] = useState(5)
   const [mode, setMode] = useState<PickMode>('smart')
   const [topic, setTopic] = useState('')
+  const [template, setTemplate] = useState<TemplateChoice>('auto')
+  const [autoRender, setAutoRender] = useState(true)
+  const opts = useRenderOptions()
 
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
@@ -41,7 +45,13 @@ export function Create() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     create.mutate(
-      { source_ids: picked, n, pick_mode: mode, topic: topic.trim() || null },
+      {
+        source_ids: picked,
+        n,
+        pick_mode: mode,
+        topic: topic.trim() || null,
+        render: autoRender ? { template, aspects: [] } : null,
+      },
       { onSuccess: (run) => navigate(`/runs/${run.id}`) },
     )
   }
@@ -97,7 +107,7 @@ export function Create() {
         <Card className="space-y-5 p-5">
           <div>
             <p className="mb-2 text-sm font-medium">{t('create.mode')}</p>
-            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="radiogroup">
               {MODES.map((m) => (
                 <button
                   type="button"
@@ -113,6 +123,8 @@ export function Create() {
                   <span className="flex items-center gap-2 font-medium">
                     {m === 'free' ? (
                       <Sparkles size={14} aria-hidden />
+                    ) : m === 'whole' ? (
+                      <Film size={14} aria-hidden />
                     ) : (
                       <Bot size={14} aria-hidden />
                     )}
@@ -124,24 +136,26 @@ export function Create() {
                 </button>
               ))}
             </div>
-            {mode !== 'free' && (
+            {(mode === 'smart' || mode === 'deep') && (
               <div className="mt-2">
                 <AIStatusLine />
               </div>
             )}
           </div>
           <div className="flex flex-wrap gap-6">
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">{t('create.count')}</span>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={n}
-                onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-                className="h-9 w-24 rounded-lg border border-border bg-surface-2 px-3"
-              />
-            </label>
+            {mode !== 'whole' && (
+              <label className="text-sm">
+                <span className="mb-1 block font-medium">{t('create.count')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={n}
+                  onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                  className="h-9 w-24 rounded-lg border border-border bg-surface-2 px-3"
+                />
+              </label>
+            )}
             <label className="min-w-60 flex-1 text-sm">
               <span className="mb-1 block font-medium">{t('create.topic')}</span>
               <input
@@ -153,6 +167,29 @@ export function Create() {
               />
             </label>
           </div>
+          <div className="space-y-3 border-t border-border pt-5">
+            <label className="flex items-center gap-3 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={autoRender}
+                onChange={(e) => setAutoRender(e.target.checked)}
+                className="size-4 accent-accent"
+              />
+              <Wand2 size={15} className="text-accent" aria-hidden />
+              {t('create.autoRender')}
+            </label>
+            {autoRender && opts.data && (
+              <>
+                <p className="text-xs text-muted">{t('create.templateHelp')}</p>
+                <TemplatePicker
+                  value={template}
+                  onChange={setTemplate}
+                  templates={opts.data.templates}
+                  withAuto
+                />
+              </>
+            )}
+          </div>
           {create.error && (
             <p role="alert" className="text-sm text-danger">
               {create.error.message}
@@ -160,7 +197,11 @@ export function Create() {
           )}
           <Button type="submit" disabled={!picked.length || create.isPending}>
             {create.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />}
-            {t('create.start', { n })}
+            {mode === 'whole'
+              ? t('create.startWhole', { count: picked.length })
+              : autoRender
+                ? t('create.startRender', { n })
+                : t('create.start', { n })}
           </Button>
         </Card>
       </form>

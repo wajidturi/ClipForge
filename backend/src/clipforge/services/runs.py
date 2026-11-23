@@ -50,7 +50,7 @@ from clipforge.services import settings_store, versions
 
 log = get_logger(__name__)
 
-PickMode = Literal["free", "smart", "deep"]
+PickMode = Literal["free", "smart", "deep", "whole"]
 SELECT_JOB = "run.select"
 INACTIVE = (ShortStatus.rejected, ShortStatus.dropped)
 
@@ -67,6 +67,7 @@ def create_run(
     pick_mode: PickMode,
     topic: str | None = None,
     ai_model: str | None = None,
+    render: dict[str, Any] | None = None,
 ) -> tuple[Run, Job]:
     if not source_ids:
         raise RunInputError("choose at least one source")
@@ -77,13 +78,14 @@ def create_run(
     if not_ready:
         raise RunInputError(f"not analysed yet: {', '.join(not_ready[:3])}")
     settings = settings_store.effective(db)
-    uses_ai = pick_mode != "free" and settings.ai_provider != "none"
+    uses_ai = pick_mode not in ("free", "whole") and settings.ai_provider != "none"
     run = Run(
         params={
             "source_ids": [str(s) for s in source_ids],
             "n": n,
             "pick_mode": pick_mode,
             "topic": topic,
+            "render": render,
         },
         status=RunStatus.queued,
         ai_provider=settings.ai_provider if uses_ai else None,
@@ -96,7 +98,11 @@ def create_run(
         db,
         SELECT_JOB,
         {"run_id": str(run.id)},
-        label=f"Pick {n} moment{'s' if n > 1 else ''} ({pick_mode})",
+        label=(
+            "Use the whole clips"
+            if pick_mode == "whole"
+            else f"Pick {n} moment{'s' if n > 1 else ''} ({pick_mode})"
+        ),
         # AI runs share the GPU with transcription: keep them on the ml worker.
         caps=("cpu", "ml") if uses_ai else ("cpu",),
         run_id=run.id,
@@ -147,6 +153,49 @@ def _set_run(run_id: uuid.UUID, **values: Any) -> None:
             s.commit()
 
 
+WHOLE_MAX_S = 180.0
+
+
+def whole_picks(
+    pool: list[Candidate], sents: dict[str, list[Sent]], credits: dict[str, str | None]
+) -> list[Pick]:
+    """'Use the whole clip': one Short per source spanning all of its speech (an
+    uploaded short clip), texts taken from its best moment. Sources longer than
+    3 minutes get their best moment instead."""
+    out: list[Pick] = []
+    for sid, lst in sents.items():
+        if not lst:
+            continue
+        if lst[-1].end - lst[0].start <= WHOLE_MAX_S:
+            # One candidate spanning all the speech: works for clips shorter than the
+            # usual moment windows too; the texts come from the whole clip.
+            hot = max(lst, key=lambda x: x.heat)
+            whole = Candidate(
+                id=1,
+                source_id=sid,
+                start=lst[0].start,
+                end=lst[-1].end,
+                score=max(x.heat for x in lst),
+                first=0,
+                last=len(lst) - 1,
+                peak=hot.start,
+                tags=sorted({t for x in lst for t in x.tags}),
+                head=lst[0].text,
+                tail=lst[-1].text,
+                text=" ".join(x.text for x in lst),
+            )
+            best = heuristic_picks([whole], n=1, credit_for=credits)
+            if best:
+                p = best[0]
+                p.start, p.end, p.reason = whole.start, whole.end, "whole clip"
+                out.append(p)
+            continue
+        own = [c for c in pool if c.source_id == sid]
+        best = heuristic_picks(own, n=1, credit_for=credits) if own else []
+        out += best[:1]
+    return out
+
+
 def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     settings = settings_store.effective()
     with get_sessionmaker()() as s:
@@ -177,7 +226,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     pool = pool[:k]
     for i, c in enumerate(pool, start=1):
         c.id = i
-    if not pool:
+    if not pool and not (mode == "whole" and any(sents.values())):
         _set_run(
             run_id,
             status=RunStatus.failed,
@@ -187,51 +236,57 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         raise PermanentJobError("no candidate moments found")
     ctx.check_cancelled()
 
-    usage = Usage(provider="none", model="heuristic")
-    picks: list[Pick]
-    provider = make_provider(settings, ai_model) if mode != "free" and run_uses_ai else None
-    if provider is None:
-        picks = heuristic_picks(pool, n=n, credit_for=credits)
+    if mode == "whole":
+        usage = Usage(provider="none", model="whole clip")
+        accepted, provider = whole_picks(pool, sents, credits), None
+        rejected: list[Pick] = []
     else:
-        ctx.progress(25, f"asking {provider.model} to choose")
-        try:
-            picks, usage, notes = ai_picks(
-                provider,
-                pool,
-                n=n,
-                credits=credits,
-                topic=topic,
-                deep=mode == "deep",
-                timeout=settings.ai_timeout_s,
-            )
-            warnings += notes
-        except AIError as e:
-            warnings.append(f"AI unavailable, used signal scores instead: {e}")
+        usage = Usage(provider="none", model="heuristic")
+        picks: list[Pick]
+        provider = make_provider(settings, ai_model) if mode != "free" and run_uses_ai else None
+        if provider is None:
             picks = heuristic_picks(pool, n=n, credit_for=credits)
-    ctx.check_cancelled()
+        else:
+            ctx.progress(25, f"asking {provider.model} to choose")
+            try:
+                picks, usage, notes = ai_picks(
+                    provider,
+                    pool,
+                    n=n,
+                    credits=credits,
+                    topic=topic,
+                    deep=mode == "deep",
+                    timeout=settings.ai_timeout_s,
+                )
+                warnings += notes
+            except AIError as e:
+                warnings.append(f"AI unavailable, used signal scores instead: {e}")
+                picks = heuristic_picks(pool, n=n, credit_for=credits)
+        ctx.check_cancelled()
 
-    ctx.progress(85, "checking the picks")
-    accepted, rejected = validate(picks, sents, n=n, used=used)
-    if len(accepted) < n:  # top up with the best remaining candidates
-        taken = {p.candidate_id for p in accepted}
-        extra = heuristic_picks([c for c in pool if c.id not in taken], n=n, credit_for=credits)
-        more, more_rej = validate(
-            extra,
-            sents,
-            n=n - len(accepted),
-            used={
-                sid: used.get(sid, []) + [(p.start, p.end) for p in accepted if p.source_id == sid]
-                for sid in sents
-            },
-        )
-        for p in more:
-            p.reason = "filled by signal score: " + p.reason
-        if more and provider is not None:
-            warnings.append(
-                f"AI picked {len(accepted)} usable moments; {len(more)} added by signal score"
+        ctx.progress(85, "checking the picks")
+        accepted, rejected = validate(picks, sents, n=n, used=used)
+        if len(accepted) < n:  # top up with the best remaining candidates
+            taken = {p.candidate_id for p in accepted}
+            extra = heuristic_picks([c for c in pool if c.id not in taken], n=n, credit_for=credits)
+            more, more_rej = validate(
+                extra,
+                sents,
+                n=n - len(accepted),
+                used={
+                    sid: used.get(sid, [])
+                    + [(p.start, p.end) for p in accepted if p.source_id == sid]
+                    for sid in sents
+                },
             )
-        accepted += more
-        rejected += [r for r in more_rej if not any("enough Shorts" in i for i in r.issues)]
+            for p in more:
+                p.reason = "filled by signal score: " + p.reason
+            if more and provider is not None:
+                warnings.append(
+                    f"AI picked {len(accepted)} usable moments; {len(more)} added by signal score"
+                )
+            accepted += more
+            rejected += [r for r in more_rej if not any("enough Shorts" in i for i in r.issues)]
 
     callbacks = [
         {
@@ -280,9 +335,11 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
             s.flush()
             s.add(ShortPart(short_id=short.id, idx=0, start_s=p.start, end_s=p.end))
             created.append(short)
-        if settings.auto_render:  # Settings -> Rendering -> "Render picks automatically"
+        render_opts = params.get("render")
+        if render_opts is not None or settings.auto_render:
+            # one-click flow (Create -> template) or Settings -> "Render picks automatically"
             for short in created:
-                versions.enqueue_render(s, short, {})
+                versions.enqueue_render(s, short, dict(render_opts or {}))
         run = s.get(Run, run_id)
         assert run is not None
         run.status = RunStatus.succeeded

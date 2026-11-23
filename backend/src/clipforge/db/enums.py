@@ -69,6 +69,8 @@ class SourceStatus(StrEnum):
 
 class AssetOwner(StrEnum):
     source = "source"
+    short = "short"  # editor preview of a cut
+    brand = "brand"  # uploaded logos and images
     short_version = "short_version"
     live_session = "live_session"
     run = "run"
@@ -88,6 +90,7 @@ class AssetKind(StrEnum):
     sheet = "sheet"
     voice = "voice"
     words = "words"
+    image = "image"  # uploaded logo / sticker image
 
 
 class Storage(StrEnum):

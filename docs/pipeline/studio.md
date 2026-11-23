@@ -16,12 +16,14 @@ paste a link → pick moments → render → **review** → **edit in the studio
 
 ### Studio tabs
 
+The **Customise** tab (default) is the template and look editor; see [templates.md](templates.md). The tabs below remain for texts, timing and fixes.
+
+
 | Tab | Change | Needs a new render? |
 |---|---|---|
 | Post | title, hashtags (saved immediately); hook, highlighted words | only hook/highlights (a "Render now" hint appears) |
 | Trim | start/end by clicking sentences (cuts snap to sentence edges, max 3 min) | yes ("Save and render") |
 | Captions | fix a word's spelling or hide it; audio untouched | yes |
-| Look | caption style, layout, extra sizes | yes |
 | AI edit | describe the change in words → plan → Apply/Discard | when the picture changes |
 
 A studio render is recorded with origin `manual_edit`, an AI edit with `ai_edit`, so the version list says where each version came from.

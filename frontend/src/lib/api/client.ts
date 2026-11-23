@@ -33,6 +33,7 @@ export type RenderOptions = components['schemas']['RenderOptions']
 export type RenderRequest = components['schemas']['RenderRequest']
 export type Aspect = NonNullable<RenderRequest['aspects']>[number]
 export type Layout = NonNullable<RenderRequest['layout']>
+export type TemplateChoice = NonNullable<RenderRequest['template']>
 export type ShortStatus = ShortPick['status']
 export type ShortDetail = components['schemas']['ShortDetail']
 export type ShortVersion = components['schemas']['VersionOut']
@@ -45,6 +46,25 @@ export type ContextSentence = components['schemas']['ContextSentence']
 export type EditPlan = components['schemas']['EditOut']
 export type SettingField = components['schemas']['SettingField']
 export type SettingsPatch = components['schemas']['SettingsPatch']
+
+/** Server responses always contain every field; the generated types mark fields with
+ * defaults optional. `Full` removes that so the editor can rely on them. */
+type Full<T> = T extends (infer U)[]
+  ? Full<U>[]
+  : T extends object
+    ? { [K in keyof T]-?: Full<T[K]> }
+    : T
+export type Scene = Full<components['schemas']['Scene']>
+export type Layer = Scene['layers'][number]
+export type Captions = Scene['captions']
+export type Regions = Scene['regions']
+export type Effects = Scene['effects']
+export type TemplateId = Scene['template']
+export type StudioData = components['schemas']['StudioData']
+export type Cut = components['schemas']['CutOut']
+export type TemplateInfo = components['schemas']['TemplateOut']
+export type FontInfo = components['schemas']['FontOut']
+export type ImageInfo = components['schemas']['ImageOut']
 
 export const mediaUrl = (assetId: string) => `/api/v1/media/${assetId}`
 

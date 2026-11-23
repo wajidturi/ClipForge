@@ -57,6 +57,9 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 **Deliverables:** complete MVP usable end-to-end in the browser.
 **Exit:** Playwright E2E green; usability pass.
 
+### Phase 6b — Gaming templates & customisation studio ✅ (2026-11-23)
+**Result:** five gaming templates with attractive defaults, scene-based rendering with a cached cut (re-render = compose only), a live canvas studio matching the export (logo upload, text, emojis, 14 stickers, captions, effects, template-aware controls, drag/resize, undo/redo), one-click Create (whole clip + template), Review & customise after rendering. ADR 0006, docs/pipeline/templates.md.
+
 ### Phase 7 — Creators, discovery & live
 **Tasks:** creators CRUD + clip policies; discovery rules (RSS/search/category); past-streams lists; live recorder ring buffer; live chat readers; spike → candidate → render; live hunt; live page.
 **Exit:** 1-hour soak test on a real live stream without leaks.

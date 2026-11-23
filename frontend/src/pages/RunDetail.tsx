@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router'
 import { Badge, Card, CardHeader, Progress } from '@/components/ui'
 import { useState } from 'react'
 import { PickCard } from '@/features/runs/PickCard'
-import { RenderToolbar, type RenderChoice } from '@/features/runs/RenderToolbar'
+import { RenderToolbar } from '@/features/runs/RenderToolbar'
+import { renderBodyOf, type RenderChoice } from '@/features/runs/renderChoice'
 import { useJob } from '@/lib/jobs'
 import { useRun } from '@/lib/runs'
 import { runExportUrl } from '@/lib/shorts'
@@ -26,12 +27,8 @@ export function RunDetail() {
   const r = run.data
   const busy = r?.status === 'queued' || r?.status === 'running'
   const job = useJob(busy ? r?.job_id : null)
-  const [choice, setChoice] = useState<RenderChoice>({
-    style: 'classic',
-    layout: 'auto',
-    aspects: [],
-  })
-  const renderBody = { style: choice.style, layout: choice.layout, aspects: choice.aspects }
+  const [choice, setChoice] = useState<RenderChoice>({ template: 'auto', aspects: [] })
+  const renderBody = renderBodyOf(choice)
 
   if (run.isError) return <p className="px-8 py-8 text-sm text-danger">{t('runs.notFound')}</p>
   if (!r) return <p className="px-8 py-8 text-sm text-muted">…</p>

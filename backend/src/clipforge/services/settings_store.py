@@ -48,7 +48,7 @@ EDITABLE: dict[str, str] = {
     "chat_spike_ratio": "analysis",
     "chat_spike_min_per_min": "analysis",
     "render_style": "render",
-    "render_layout": "render",
+    "render_template": "render",
     "render_aspects": "render",
     "auto_render": "render",
     "ytdlp_cookies_browser": "sources",
@@ -66,7 +66,7 @@ def _extra_choices(key: str) -> list[Any] | None:
     if key == "render_style":
         from clipforge.pipeline.render.captions import STYLES
 
-        return list(STYLES)
+        return ["template", *STYLES]
     if key == "whisper_model":
         return WHISPER_MODELS
     if key == "ytdlp_cookies_browser":

@@ -1,7 +1,7 @@
 import {
   Check,
   Clapperboard,
-  Download,
+  Palette,
   ExternalLink,
   Pencil,
   SlidersHorizontal,
@@ -186,36 +186,26 @@ export function PickCard({
           <p className="text-xs text-danger">{(edit.error ?? render.error)?.message}</p>
         )}
         <div className="flex flex-wrap gap-1.5 pt-1">
+          {/* After rendering, the next step is the review & customisation studio
+              (downloads live there, after the user has seen the result). */}
+          {v?.mp4_asset_id && pick.status !== 'rendering' && !editing && (
+            <Link
+              to={`/shorts/${pick.id}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-xs font-medium text-accent-fg hover:opacity-90"
+            >
+              <Palette size={14} aria-hidden /> {t('runs.customize')}
+            </Link>
+          )}
           {pick.status !== 'rendering' && !editing && (
             <Button
               size="sm"
-              variant={v ? 'secondary' : 'primary'}
+              variant={v ? 'ghost' : 'primary'}
               onClick={() => render.mutate({ id: pick.id, body: renderBody })}
               disabled={render.isPending}
             >
               <Clapperboard size={14} aria-hidden /> {v ? t('render.again') : t('render.one')}
             </Button>
           )}
-          {v?.mp4_asset_id && (
-            <a
-              href={mediaUrl(v.mp4_asset_id)}
-              download={`short_${rank}_v${v.version_no}.mp4`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs text-muted hover:bg-surface-2 hover:text-fg"
-            >
-              <Download size={14} aria-hidden /> MP4
-            </a>
-          )}
-          {v &&
-            Object.entries(v.extra_assets ?? {}).map(([aspect, id]) => (
-              <a
-                key={aspect}
-                href={mediaUrl(id)}
-                download={`short_${rank}_${aspect.replace(':', 'x')}.mp4`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs text-muted hover:bg-surface-2 hover:text-fg"
-              >
-                <Download size={14} aria-hidden /> {aspect}
-              </a>
-            ))}
           {editing ? (
             <>
               <Button size="sm" onClick={save} disabled={edit.isPending}>

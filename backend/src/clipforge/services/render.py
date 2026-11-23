@@ -1,9 +1,13 @@
 """The `short.render` job: one pick -> one new ShortVersion (MP4, cover, QC).
 
-Steps: segment (only this range) -> EDL edit -> picture analysis -> layout plan ->
-captions + hook -> loudness -> final encode -> cover -> extra aspects -> QC.
+Two stages: the *cut* (segment, pause removal, face/facecam analysis, loudness,
+editor preview; cached, see services/cuts.py) and the *compose* stage that draws
+the scene (template, captions, effects, stickers, logo) on top of it. A studio
+re-render with a new look only runs the compose stage.
+
 A QC FAIL triggers one automatic re-cut (a sentence later at the start, or one more
-sentence at the end) before giving up. Versions never overwrite each other.
+sentence at the end) before giving up. Versions never overwrite each other, and the
+source footage is never modified.
 """
 
 from __future__ import annotations
@@ -12,7 +16,6 @@ import json
 import shutil
 import time
 import uuid
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -40,28 +43,27 @@ from clipforge.db.models import (
     ShortPart,
     ShortVersion,
     Signal,
+    Source,
     Transcript,
 )
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobCancelledError, JobContext, PermanentJobError
-from clipforge.pipeline.render import captions, compose, cover, qc, reframe
-from clipforge.pipeline.render.edl import Edl, build_edl, caption_words
-from clipforge.pipeline.render.effects import measure_loudness, pick_peaks
-from clipforge.pipeline.signals import vision as vision_sig
+from clipforge.pipeline.render import captions, compose, cover, qc, reframe, scene_render
+from clipforge.pipeline.render import scene as sc
+from clipforge.pipeline.render.edl import apply_fixes, build_edl
 from clipforge.pipeline.transcription.sentences import Word
-from clipforge.services import segments, settings_store
+from clipforge.services import brand_assets, cuts, settings_store
 
 log = get_logger(__name__)
 
-PAD_S = 2.0
 ASPECTS = {"4:5": (1080, 1350, AssetKind.aspect_4x5), "1:1": (1080, 1080, AssetKind.aspect_1x1)}
 
 
 def defaults() -> dict[str, Any]:
     """Render options used when a request leaves them out (Settings -> Rendering)."""
     s = settings_store.effective()
-    style = s.render_style if s.render_style in captions.STYLES else captions.DEFAULT_STYLE
-    return {"style": style, "layout": s.render_layout, "aspects": list(s.render_aspects)}
+    style = s.render_style if s.render_style in captions.STYLES else "template"
+    return {"style": style, "template": s.render_template, "aspects": list(s.render_aspects)}
 
 
 class _Ctx:
@@ -119,13 +121,18 @@ def _load(short_id: uuid.UUID) -> dict[str, Any]:
         ) + 1
         data = json.loads((settings.resolved_data_dir / tr.words_path).read_text(encoding="utf-8"))
         prev = s.get(ShortVersion, short.active_version_id) if short.active_version_id else None
+        src = s.get(Source, short.source_id)
         return {
             "short": {
                 "id": short.id,
                 "source_id": short.source_id,
                 "hook": short.hook,
+                "title": short.title,
+                "channel": short.credit or (src.channel_name if src else None),
                 "keywords": list(short.keywords or []),
             },
+            "had_render": prev is not None,
+            "prev_scene": (prev.settings or {}).get("scene") if prev else None,
             "start": part.start_s,
             "end": part.end_s,
             "loud": list(loud),
@@ -169,10 +176,42 @@ def _set_status(short_id: uuid.UUID, status: ShortStatus, **extra: Any) -> None:
             s.commit()
 
 
-def _caption_margin(layout: str, plan: compose.Plan) -> int:
-    if layout == "stack" and plan.top_h:
-        return compose.OUT_H - plan.top_h - 260  # just below the facecam band
-    return 520  # lower third, clear of most faces
+# ------------------------------------------------------------------ scene
+def placeholder_values(info: dict[str, Any], cut: cuts.Cut) -> dict[str, str | None]:
+    sh = info["short"]
+    return {
+        "hook": sh["hook"],
+        "title": sh["title"],
+        "channel": sh["channel"] or "",
+        "reaction": cut.data.get("reaction") or "NO WAY!",
+    }
+
+
+def resolve_scene(
+    opts: dict[str, Any], info: dict[str, Any], cut: cuts.Cut
+) -> tuple[sc.Scene, str | None]:
+    """Which scene to draw: one sent by the studio, the previous version's (kept on a
+    plain re-render), or the template's defaults. Returns (scene, note)."""
+    d = cut.data
+    ctx = sc.Ctx(d["duration"], d["zoom_peaks"], has_cam=d["cam"] is not None)
+    prev = sc.Scene.model_validate(info["prev_scene"]) if info.get("prev_scene") else None
+    if opts.get("scene"):
+        scene = sc.Scene.model_validate(opts["scene"])
+    else:
+        requested = opts.get("template") or opts.get("layout") or "auto"
+        requested = sc.LEGACY_LAYOUT.get(requested, requested)
+        if prev is not None and requested in ("auto", prev.template):
+            scene = prev
+        else:
+            t, _ = sc.resolve_template(requested, ctx.has_cam)
+            scene = sc.switch_template(prev, t, ctx) if prev else sc.default_scene(t, ctx)
+        style = opts.get("style")
+        if style and style != "template" and style in captions.STYLES:
+            scene.captions = sc.caption_preset(style, y=scene.captions.y)
+    used, note = sc.resolve_template(scene.template, ctx.has_cam)
+    if used != scene.template:
+        scene = sc.switch_template(scene, used, ctx)
+    return scene, note
 
 
 def render_version(
@@ -185,141 +224,102 @@ def render_version(
 ) -> dict[str, Any]:
     """Render one version into `out_dir`; returns paths, plan facts and QC."""
     ctx = _Ctx(job)
-    settings = get_settings()
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
 
-    job.progress(2, "fetching the video for this moment")
-    seg_start = max(0.0, start - PAD_S)
-    seg = segments.ensure_segment(
-        info["short"]["source_id"],
-        seg_start,
-        end + PAD_S,
-        is_cancelled=lambda: job.cancelled,
-        progress=lambda p, st: job.progress(None if p < 0 else 2 + p * 0.18, st),
-    )
+    cut = cuts.ensure_cut(job, info, start, end)
+    plan = cut.plan
     job.check_cancelled()
-
-    edl: Edl = build_edl(info["words"], start, end)
-    edited = out_dir / "edited.mkv"
-    job.progress(22, "cutting pauses")
-    compose.edit_pass(
-        settings.resolved_data_dir / seg.path,
-        seg_start,
-        edl,
-        edited,
-        is_cancelled=lambda: job.cancelled,
-    )
-
-    job.progress(32, "finding faces and the facecam")
-    try:
-        face_model: Path | None = vision_sig.ensure_face_model(
-            settings.resolved_data_dir / "models"
-        )
-    except Exception:
-        face_model = None
-    a = reframe.analyze(edited, face_model=face_model)
-    cam = reframe.detect_cam(a.samples)
-    layout = reframe.choose_layout(a, cam, opts.get("layout", "auto"))
-    job.check_cancelled()
-
-    plan = compose.Plan(layout, a.width, a.height, edl.duration, cam=cam)
-    out_ar = plan.out_w / ((plan.out_h - plan.top_h) if layout == "stack" else plan.out_h)
-    win = min(1.0, a.height * out_ar / a.width)
-    plan.crop_keys = reframe.track(a, win, cam=cam if layout in ("stack", "bubble") else None)
-    peaks_src = ([info["hottest"]] if info["hottest"] is not None else []) + info["loud"]
-    plan.zoom_peaks = pick_peaks([edl.map_clamped(t) for t in peaks_src], edl.duration)
-
-    words = caption_words(
-        apply_caption_overrides(info["words"], opts.get("caption_overrides") or {}), edl
-    )
-    style = opts.get("style", captions.DEFAULT_STYLE)
-    ass_text = captions.build_ass(
-        words,
-        style=style,
-        keywords=info["short"]["keywords"],
-        hook=info["short"]["hook"],
-        margin_v=_caption_margin(layout, plan),
-        duration=edl.duration,
-    )
-    ass = out_dir / "captions.ass"
-    ass.write_text(ass_text, encoding="utf-8")
-
-    job.progress(40, "measuring loudness")
-    measured = measure_loudness(edited)
+    scene, note = resolve_scene(opts, info, cut)
+    values = placeholder_values(info, cut)
+    words = apply_fixes(cut.keyed(), opts.get("caption_overrides") or {})
     final = out_dir / "short.mp4"
-    compose.final_pass(
-        edited,
+    job.progress(42, "rendering")
+    scene_render.render_scene(
+        cut.edited,
+        scene,
         plan,
         final,
-        ass=ass,
-        measured=measured,
+        words=words,
+        keywords=info["short"]["keywords"],
+        values=values,
+        image_path=brand_assets.image_path,
         on_progress=ctx.slice(42, 85, "rendering"),
         is_cancelled=lambda: job.cancelled,
     )
 
     job.progress(86, "making the cover")
-    peak_t = plan.zoom_peaks[0] if plan.zoom_peaks else edl.duration / 2
-    frame = compose.extract_frame(final, peak_t + 0.3, out_dir / "frame.jpg")
-    cover_path = cover.make_cover(frame, info["short"]["hook"], out_dir / "cover.jpg")
+    frame = compose.extract_frame(final, scene_render.peak_time(plan) + 0.3, out_dir / "frame.jpg")
+    hook_shown = any(ly.role == "hook" and ly.visible for ly in scene.layers)
+    cover_path = cover.make_cover(
+        frame, None if hook_shown else info["short"]["hook"], out_dir / "cover.jpg"
+    )
     frame.unlink(missing_ok=True)
 
+    cap_settings = scene.captions.model_dump()
     extras: dict[str, Path] = {}
     for aspect in opts.get("aspects") or []:
         if aspect not in ASPECTS:
             continue
         w, h, _kind = ASPECTS[aspect]
         job.progress(88, f"rendering {aspect}")
+        blur = scene.regions.fit == "blur" and scene.template in ("cinematic", "floating_facecam")
         eplan = compose.Plan(
-            "full" if layout == "full" else "crop",
-            a.width,
-            a.height,
-            edl.duration,
-            reframe.track(a, min(1.0, a.height * (w / h) / a.width)),
+            "full" if blur else "crop",
+            plan.src_w,
+            plan.src_h,
+            plan.duration,
+            reframe.track_targets(
+                plan.targets, plan.cuts, min(1.0, plan.src_h * (w / h) / plan.src_w)
+            ),
             None,
-            plan.zoom_peaks,
+            plan.zoom_peaks if scene.effects.zoom_punch else [],
             w,
             h,
         )
         eass = out_dir / f"captions_{w}x{h}.ass"
         eass.write_text(
             captions.build_ass(
-                words,
-                style=style,
+                words if scene.captions.visible else [],
+                settings=cap_settings,
                 keywords=info["short"]["keywords"],
-                hook=info["short"]["hook"],
-                margin_v=int(h * 0.2),
-                duration=edl.duration,
+                duration=plan.duration,
                 size=(w, h),
             ),
             encoding="utf-8",
         )
         extras[aspect] = out_dir / f"short_{aspect.replace(':', 'x')}.mp4"
         compose.final_pass(
-            edited,
+            cut.edited,
             eplan,
             extras[aspect],
             ass=eass,
-            measured=measured,
+            measured=plan.measured,
             is_cancelled=lambda: job.cancelled,
         )
 
     job.progress(94, "quality check")
-    result = qc.check(
-        final, caption_coverage=captions.coverage(words, ass_text), expected_s=edl.duration
+    ass = out_dir / "captions.ass"
+    coverage = (
+        captions.coverage(words, ass.read_text("utf-8"))
+        if scene.captions.visible and ass.exists()
+        else 1.0
     )
-    edited.unlink(missing_ok=True)
-    for g in out_dir.glob("*.txt"):
+    result = qc.check(final, caption_coverage=coverage, expected_s=plan.duration)
+    for g in [*out_dir.glob("*.txt"), *out_dir.glob("*.png")]:
         g.unlink()
     return {
         "final": final,
         "cover": cover_path,
-        "ass": ass,
+        "ass": ass if ass.exists() else None,
         "extras": extras,
         "qc": result,
-        "edl": edl,
-        "layout": layout,
-        "cam": asdict(cam) if cam else None,
+        "edl": build_edl(info["words"], start, end),
+        "layout": scene.template,
+        "scene": scene.model_dump(),
+        "note": note,
+        "cut_key": cut.key,
+        "cam": cut.data["cam"],
         "zoom_peaks": plan.zoom_peaks,
         "encoder": compose.video_encoder()[1],
         "render_ms": int((time.monotonic() - t0) * 1000),
@@ -351,8 +351,7 @@ def _save(
     start: float,
     end: float,
 ) -> uuid.UUID:
-    settings = get_settings()
-    root = settings.resolved_data_dir
+    root = get_settings().resolved_data_dir
 
     def asset(kind: AssetKind, p: Path, vid: uuid.UUID) -> MediaAsset:
         info = ffmpeg.probe(p) if p.suffix == ".mp4" else None
@@ -376,7 +375,12 @@ def _save(
             version_no=version_no,
             origin=origin,
             settings={
-                **{k: v for k, v in opts.items() if k != "caption_overrides"},
+                **{k: v for k, v in opts.items() if k not in ("caption_overrides", "scene")},
+                "template": r["layout"],
+                "style": r["scene"]["captions"]["preset"],
+                "scene": r["scene"],
+                "note": r["note"],
+                "cut_key": r["cut_key"],
                 "layout_used": r["layout"],
                 "cam": r["cam"],
                 "zoom_peaks": r["zoom_peaks"],
@@ -394,9 +398,10 @@ def _save(
             [
                 asset(AssetKind.mp4, r["final"], ver.id),
                 asset(AssetKind.cover, r["cover"], ver.id),
-                asset(AssetKind.caption_ass, r["ass"], ver.id),
             ]
         )
+        if r["ass"] is not None:
+            s.add(asset(AssetKind.caption_ass, r["ass"], ver.id))
         for aspect, p in r["extras"].items():
             s.add(asset(ASPECTS[aspect][2], p, ver.id))
         q = r["qc"]
@@ -418,11 +423,18 @@ def _save(
 
 def render(job: JobContext, short_id: uuid.UUID, options: dict[str, Any]) -> dict[str, Any]:
     opts = {**defaults(), **{k: v for k, v in options.items() if v is not None}}
-    if opts["style"] not in captions.STYLES:
+    if opts["style"] not in captions.STYLES and opts["style"] != "template":
         raise PermanentJobError(f"unknown caption style '{opts['style']}'")
-    if opts["layout"] not in reframe.LAYOUTS:
-        raise PermanentJobError(f"unknown layout '{opts['layout']}'")
+    requested = opts.get("template") or opts.get("layout") or "auto"
+    if requested not in (*sc.TEMPLATE_IDS, "auto", *sc.LEGACY_LAYOUT):
+        raise PermanentJobError(f"unknown template '{requested}'")
+    if opts.get("scene"):
+        try:
+            sc.Scene.model_validate(opts["scene"])
+        except ValueError as e:
+            raise PermanentJobError(f"invalid scene: {e}") from None
     info = _load(short_id)
+    back = ShortStatus.review if info["had_render"] else ShortStatus.picked
     if "caption_overrides" not in opts:  # keep earlier caption fixes on a re-render
         opts["caption_overrides"] = info["caption_overrides"]
     _set_status(short_id, ShortStatus.rendering)
@@ -440,6 +452,7 @@ def render(job: JobContext, short_id: uuid.UUID, options: dict[str, Any]) -> dic
             start, end = cut
             version_no += 1
             out_dir = root / f"v{version_no}"
+            opts["scene"] = r["scene"]  # same look on the re-cut
             r = render_version(job, info, start, end, opts, out_dir)
             vid = _save(short_id, version_no, VersionOrigin.recut, opts, r, start, end)
             q = r["qc"]
@@ -453,16 +466,17 @@ def render(job: JobContext, short_id: uuid.UUID, options: dict[str, Any]) -> dic
             "qc": q.verdict,
             "reasons": q.reasons,
             "layout": r["layout"],
+            "template": r["layout"],
+            "note": r["note"],
             "render_ms": r["render_ms"],
         }
     except (JobCancelledError, ffmpeg.FFmpegCancelledError):
-        _set_status(short_id, ShortStatus.picked)
+        _set_status(short_id, back)
         shutil.rmtree(root / f"v{version_no}", ignore_errors=True)
         raise JobCancelledError from None
     except Exception:
-        if job.is_last_attempt:
-            _set_status(short_id, ShortStatus.failed)
-        else:
-            _set_status(short_id, ShortStatus.picked)
+        _set_status(
+            short_id, ShortStatus.failed if job.is_last_attempt and not info["had_render"] else back
+        )
         shutil.rmtree(root / f"v{version_no}", ignore_errors=True)
         raise

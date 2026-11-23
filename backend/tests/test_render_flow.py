@@ -143,7 +143,8 @@ def test_render_produces_a_vertical_short_that_passes_qc(client: TestClient) -> 
     short = render(client, sid)
     assert short["status"] == "review", short
     v = short["active"]
-    assert v["version_no"] == 1 and v["layout"] == "crop" and v["qc_verdict"] in ("pass", "warn")
+    assert v["version_no"] == 1 and v["layout"] == "cinematic"
+    assert v["qc_verdict"] in ("pass", "warn")
     mp4 = media_path(v["mp4_asset_id"])
     info = ffmpeg.probe(mp4)
     assert (info.video.width, info.video.height) == (1080, 1920) and info.has_audio
@@ -165,20 +166,20 @@ def test_rerender_creates_a_new_version_with_extra_aspect(client: TestClient) ->
     short = render(client, sid, style="word", layout="full", aspects=["4:5"])
     assert [v["version_no"] for v in short["versions"]] == [2, 1]
     v2 = short["active"]
-    assert v2["origin"] == "rerender" and v2["layout"] == "full" and v2["style"] == "word"
+    assert v2["origin"] == "rerender" and v2["layout"] == "cinematic" and v2["style"] == "word"
     extra = ffmpeg.probe(media_path(v2["extra_assets"]["4:5"]))
     assert (extra.video.width, extra.video.height) == (1080, 1350)
     # version 1 is still there, untouched
     assert media_path(short["versions"][1]["mp4_asset_id"]).exists()
 
 
-@pytest.mark.parametrize("layout", ["stack", "bubble"])
+@pytest.mark.parametrize("layout", ["streamer_first", "floating_facecam"])
 def test_facecam_layouts_render(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, layout: str
 ) -> None:
     monkeypatch.setattr(reframe, "detect_cam", lambda samples: Box(0.75, 0.05, 0.2, 0.3))
     sid = seed_short(video_s=24, start=4, end=18)
-    short = render(client, sid, layout=layout, style="karaoke")
+    short = render(client, sid, template=layout, style="karaoke")
     assert short["status"] == "review", short["versions"][0]["qc_reasons"]
     assert short["active"]["layout"] == layout
     info = ffmpeg.probe(media_path(short["active"]["mp4_asset_id"]))
@@ -202,8 +203,23 @@ def test_render_run_queues_all_picks_and_rejects_double_render(client: TestClien
 
 def test_render_options(client: TestClient) -> None:
     o = client.get("/api/v1/render/options").json()
-    assert {s["id"] for s in o["styles"]} == {"classic", "word", "box", "karaoke", "minimal"}
-    assert [x["id"] for x in o["layouts"]] == ["auto", "crop", "stack", "bubble", "full"]
+    assert {s["id"] for s in o["styles"]} == {
+        "gaming",
+        "classic",
+        "word",
+        "box",
+        "karaoke",
+        "minimal",
+    }
+    assert [x["id"] for x in o["templates"]] == [
+        "streamer_first",
+        "gameplay_first",
+        "dual_vision",
+        "floating_facecam",
+        "cinematic",
+    ]
+    assert "impact" in {f["id"] for f in o["fonts"]}
+    assert o["caption_presets"]["gaming"]["font"] == "impact"
     assert o["encoder"] in ("CPU (x264)", "GPU (NVENC)")
 
 

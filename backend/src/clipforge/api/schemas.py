@@ -16,6 +16,7 @@ from clipforge.db.enums import (
     ShortStatus,
     SourceStatus,
 )
+from clipforge.pipeline.render.scene import Captions, Scene
 
 
 class HealthOut(BaseModel):
@@ -241,10 +242,20 @@ class AnalyzeRequest(BaseModel):
 
 
 # ------------------------------------------------------------------ runs & picks
+class RunRender(BaseModel):
+    template: TemplateChoice = "auto"
+    aspects: list[Literal["4:5", "1:1"]] = Field(default_factory=list)
+
+
 class RunCreate(BaseModel):
     source_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
     n: int = Field(default=5, ge=1, le=20, description="how many Shorts to pick")
-    pick_mode: Literal["free", "smart", "deep"] = "smart"
+    pick_mode: Literal["free", "smart", "deep", "whole"] = Field(
+        default="smart", description="whole = each (short) source becomes one Short"
+    )
+    render: RunRender | None = Field(
+        default=None, description="render the picks right away with this template"
+    )
     topic: str | None = Field(default=None, max_length=200, description="e.g. a game or a name")
     ai_model: str | None = Field(default=None, max_length=100)
 
@@ -325,9 +336,22 @@ class ShortDetail(ShortOut):
     versions: list[VersionOut] = Field(default_factory=list)
 
 
+TemplateChoice = Literal[
+    "auto", "streamer_first", "gameplay_first", "dual_vision", "floating_facecam", "cinematic"
+]
+
+
 class RenderRequest(BaseModel):
-    style: str | None = Field(default=None, description="caption style id")
-    layout: Literal["auto", "crop", "stack", "bubble", "full"] | None = None
+    template: TemplateChoice | None = Field(
+        default=None, description="look of the Short; auto = by facecam detection"
+    )
+    scene: Scene | None = Field(
+        default=None, description="the full look from the studio (overrides template/style)"
+    )
+    style: str | None = Field(default=None, description="caption preset id")
+    layout: Literal["auto", "crop", "stack", "bubble", "full"] | None = Field(
+        default=None, description="deprecated: use template"
+    )
     aspects: list[Literal["4:5", "1:1"]] | None = None
     caption_overrides: dict[str, str] | None = Field(
         default=None,
@@ -358,11 +382,67 @@ class OptionOut(BaseModel):
     label: str
 
 
+class TemplateOut(BaseModel):
+    id: str
+    name: str
+    tagline: str
+    description: str
+    needs_cam: bool
+    controls: list[str]
+
+
+class FontOut(BaseModel):
+    id: str
+    label: str
+    category: str
+
+
 class RenderOptions(BaseModel):
     styles: list[OptionOut]
-    layouts: list[OptionOut]
+    templates: list[TemplateOut]
+    fonts: list[FontOut]
+    caption_presets: dict[str, Captions]
     aspects: list[OptionOut]
     encoder: str
+
+
+class CutOut(BaseModel):
+    """What the studio's live preview needs about the prepared cut."""
+
+    key: str
+    preview_asset_id: uuid.UUID
+    src_w: int
+    src_h: int
+    duration: float
+    cam: list[float] | None
+    targets: list[tuple[float, float | None]]
+    cuts: list[float]
+    zoom_peaks: list[float]
+    words: list[tuple[float, float, str, str]] = Field(
+        description="caption words: start, end (output s), text, key"
+    )
+    reaction: str | None
+
+
+class StudioData(BaseModel):
+    version_id: uuid.UUID | None
+    scene: Scene
+    note: str | None
+    values: dict[str, str | None] = Field(description="placeholder values ({hook}, ...)")
+    caption_overrides: dict[str, str]
+    cut: CutOut | None = Field(description="null: render once to enable live editing")
+
+
+class TemplateSwitch(BaseModel):
+    template: TemplateChoice
+    scene: Scene | None = Field(default=None, description="current scene (user layers are kept)")
+
+
+class ImageOut(BaseModel):
+    id: uuid.UUID
+    name: str | None
+    width: int | None
+    height: int | None
 
 
 class ShortEvent(BaseModel):

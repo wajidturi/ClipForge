@@ -17,6 +17,13 @@ const BUSY = makeSource({
   status: 'analyzing',
 })
 const RUN_ID = '01900000-0000-7000-8000-00000000r001'
+const TEMPLATES = [
+  ['streamer_first', 'Streamer First'],
+  ['gameplay_first', 'Gameplay First'],
+  ['dual_vision', 'Dual Vision'],
+  ['floating_facecam', 'Floating Facecam'],
+  ['cinematic', 'Cinematic Gaming'],
+].map(([id, name]) => ({ id, name, tagline: '', description: '', needs_cam: false, controls: [] }))
 
 const PICK: ShortPick = {
   id: 's1',
@@ -93,6 +100,18 @@ describe('Create page', () => {
           models: [],
         }),
       },
+      {
+        method: 'GET',
+        path: /\/render\/options$/,
+        handler: () => ({
+          styles: [],
+          templates: TEMPLATES,
+          fonts: [],
+          caption_presets: {},
+          aspects: [],
+          encoder: 'CPU (x264)',
+        }),
+      },
       { method: 'POST', path: /\/runs$/, status: 201, handler: () => RUN },
       { method: 'GET', path: /\/runs\/.+/, handler: () => RUN },
     ])
@@ -100,15 +119,22 @@ describe('Create page', () => {
     expect(await screen.findByText('Huge reaction')).toBeInTheDocument()
     expect(screen.queryByText('Still analysing')).not.toBeInTheDocument()
     expect(await screen.findByText('Ollama ready, model qwen3.5:4b')).toBeInTheDocument()
-    const start = screen.getByRole('button', { name: /pick 5 moments/i })
+    const start = screen.getByRole('button', { name: /pick 5 moments and generate/i })
     expect(start).toBeDisabled()
-    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('checkbox', { name: /huge reaction/i }))
+    await userEvent.click(await screen.findByRole('radio', { name: /cinematic gaming/i }))
     await userEvent.click(screen.getByRole('radio', { name: /deep/i }))
     await userEvent.type(screen.getByLabelText('Topic'), 'GTA 6')
     await userEvent.click(start)
     expect(await screen.findByText('KAI JUMPS THE BRIDGE')).toBeInTheDocument() // navigated to the run
     const post = api.calls.find((c) => c.method === 'POST')
-    expect(post?.body).toEqual({ source_ids: [READY.id], n: 5, pick_mode: 'deep', topic: 'GTA 6' })
+    expect(post?.body).toEqual({
+      source_ids: [READY.id],
+      n: 5,
+      pick_mode: 'deep',
+      topic: 'GTA 6',
+      render: { template: 'cinematic', aspects: [] },
+    })
   })
 })
 
@@ -147,7 +173,7 @@ describe('Run page', () => {
 })
 
 describe('Rendered pick', () => {
-  it('shows the player, QC and download, and renders again with the toolbar choice', async () => {
+  it('shows the player and QC, leads to the studio, renders again with the template', async () => {
     const rendered: ShortPick = {
       ...PICK,
       status: 'review',
@@ -177,11 +203,10 @@ describe('Rendered pick', () => {
         method: 'GET',
         path: /\/render\/options$/,
         handler: () => ({
-          styles: [
-            { id: 'classic', label: 'Classic' },
-            { id: 'word', label: 'One word' },
-          ],
-          layouts: [{ id: 'auto', label: 'Automatic' }],
+          styles: [{ id: 'classic', label: 'Classic' }],
+          templates: TEMPLATES,
+          fonts: [],
+          caption_presets: {},
           aspects: [],
           encoder: 'CPU (x264)',
         }),
@@ -196,18 +221,18 @@ describe('Rendered pick', () => {
     )
     expect(within(card).getByText('QC warnings')).toBeInTheDocument()
     expect(within(card).getByText(/loudness -16.0 LUFS/)).toBeInTheDocument()
-    expect(within(card).getByRole('link', { name: 'MP4' })).toHaveAttribute(
+    // no direct download: the next step is the review & customisation studio
+    expect(within(card).queryByRole('link', { name: 'MP4' })).not.toBeInTheDocument()
+    expect(within(card).getByRole('link', { name: /review & customise/i })).toHaveAttribute(
       'href',
-      '/api/v1/media/mp4-1',
+      '/shorts/s1',
     )
-    expect(within(card).getByRole('link', { name: '4:5' })).toBeInTheDocument()
     await screen.findByText('Encoder: CPU (x264)')
-    await userEvent.selectOptions(screen.getByLabelText('Caption style'), 'word')
+    await userEvent.click(screen.getByRole('radio', { name: /dual vision/i }))
     await userEvent.click(within(card).getByRole('button', { name: /render again/i }))
     await vi.waitFor(() => expect(api.calls.some((c) => c.method === 'POST')).toBe(true))
     expect(api.calls.find((c) => c.method === 'POST')?.body).toEqual({
-      style: 'word',
-      layout: 'auto',
+      template: 'dual_vision',
       aspects: [],
     })
   })

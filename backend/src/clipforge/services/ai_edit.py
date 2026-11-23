@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 from clipforge.ai.base import AIError, Provider
 from clipforge.db.enums import EditKind, EditStatus
 from clipforge.db.models import EditRequest, Job, Short, ShortVersion
-from clipforge.pipeline.render import captions, reframe
+from clipforge.pipeline.render import captions
+from clipforge.pipeline.render import scene as sc
 from clipforge.services import settings_store, versions
 from clipforge.services import shorts as shorts_svc
 
@@ -50,7 +51,7 @@ class EditOp(BaseModel):
         default=None, description="trim: + ends later, - ends earlier (seconds)"
     )
     style: str | None = Field(default=None, description="set_style: a caption style id")
-    layout: str | None = Field(default=None, description="set_layout: a layout id")
+    layout: str | None = Field(default=None, description="set_layout: a template id")
     words: list[str] | None = Field(
         default=None, description="set_keywords (1-3 words) / set_hashtags (2-5 tags)"
     )
@@ -73,7 +74,7 @@ Operations:
 - set_hook: the 2-6 word banner shown in the first seconds (UPPERCASE, punchy, no emojis).
 - set_title: the post title (max 100 characters).
 - set_style: caption style, one of: {styles}.
-- set_layout: picture layout, one of: {layouts}.
+- set_layout: the template (whole look), one of: {layouts}.
 - set_keywords: 1-3 words highlighted in the captions.
 - set_hashtags: 2-5 hashtags.
 - fix_word: fix a misheard caption word (wrong -> right).
@@ -110,7 +111,7 @@ def _context(db: Session, short: Short) -> str:
             f"Title: {short.title or '-'}",
             f"Keywords: {', '.join(short.keywords or []) or '-'}",
             f"Hashtags: {' '.join(short.hashtags or []) or '-'}",
-            f"Caption style: {st.get('style', '-')}  Layout: {st.get('layout_used', '-')}",
+            f"Caption style: {st.get('style', '-')}  Template: {st.get('layout_used', '-')}",
             "",
             "Just before the clip:",
             *[f"[{s['start'] - t0:+.1f}s] {s['text']}" for s in before],
@@ -141,9 +142,9 @@ def rule_plan(instruction: str) -> EditPlan:
         if re.search(rf"\b{re.escape(sid)}\b", low) and "style" in low:
             ops.append(EditOp(op="set_style", style=sid))
             break
-    for lay in reframe.LAYOUTS:
-        if re.search(rf"\b{lay}\b", low) and "layout" in low:
-            ops.append(EditOp(op="set_layout", layout=lay))
+    for phrase, template in TEMPLATE_WORDS:
+        if phrase in low:
+            ops.append(EditOp(op="set_layout", layout=template))
             break
     if m := re.search(rf"start\w*\s+{_NUM}\s*s\w*\s+later", low):
         ops.append(EditOp(op="trim", start_delta_s=float(m.group(1))))
@@ -199,9 +200,12 @@ def sanitize(plan: EditPlan) -> tuple[list[EditOp], list[str]]:
         if o.op == "set_style" and o.style not in captions.STYLES:
             notes.append(f"unknown caption style '{o.style}' ignored")
             continue
-        if o.op == "set_layout" and o.layout not in reframe.LAYOUTS:
-            notes.append(f"unknown layout '{o.layout}' ignored")
-            continue
+        if o.op == "set_layout":
+            t = sc.LEGACY_LAYOUT.get(o.layout or "", o.layout)
+            if t not in sc.TEMPLATE_IDS:
+                notes.append(f"unknown template '{o.layout}' ignored")
+                continue
+            o = o.model_copy(update={"layout": t})
         if o.op in ("set_keywords", "set_hashtags") and not o.words:
             notes.append(f"{o.op}: no words given")
             continue
@@ -247,6 +251,16 @@ def _rewrite(
     return text, usage
 
 
+TEMPLATE_WORDS = (
+    ("streamer first", "streamer_first"),
+    ("gameplay first", "gameplay_first"),
+    ("dual vision", "dual_vision"),
+    ("split screen", "dual_vision"),
+    ("floating", "floating_facecam"),
+    ("picture in picture", "floating_facecam"),
+    ("bubble", "floating_facecam"),
+    ("cinematic", "cinematic"),
+)
 MERGEABLE = ("set_style", "set_layout", "trim")
 
 
@@ -288,7 +302,7 @@ def plan(db: Session, short: Short, instruction: str, provider: Provider | None)
             usage = {"provider": "rules"}
         else:
             system = SYSTEM.format(
-                styles=", ".join(captions.STYLES), layouts=", ".join(reframe.LAYOUTS)
+                styles=", ".join(captions.STYLES), layouts=", ".join(sc.TEMPLATE_IDS)
             )
             user = f"{_context(db, short)}\n\nRequested change: {instruction}"
             timeout = settings_store.effective(db).ai_timeout_s
@@ -384,7 +398,7 @@ def apply(db: Session, er: EditRequest) -> Job | None:
         elif o.op == "set_style":
             opts["style"] = o.style
         elif o.op == "set_layout":
-            opts["layout"] = o.layout
+            opts["template"] = o.layout
     if trim:
         view = shorts_svc.words_view(db, short, context_s=0)
         patch["start_s"] = view["start_s"] + sum(o.start_delta_s or 0 for o in trim)
@@ -397,11 +411,7 @@ def apply(db: Session, er: EditRequest) -> Job | None:
     needs_render = bool(opts) or bool(changed & shorts_svc.PICTURE_FIELDS)
     if needs_render and short.active_version_id is not None:
         prev = db.get(ShortVersion, short.active_version_id)
-        keep = (
-            {k: v for k, v in (prev.settings or {}).items() if k in ("style", "layout", "aspects")}
-            if prev
-            else {}
-        )
+        keep = {k: v for k, v in (prev.settings or {}).items() if k == "aspects"} if prev else {}
         job = versions.enqueue_render(
             db, short, {**keep, **opts, "origin": "ai_edit", "edit_id": str(er.id)}
         )

@@ -121,3 +121,29 @@ def caption_words(words: list[Word], edl: Edl, *, drop_fillers: bool = True) -> 
         if text:
             out.append(CaptionWord(a, max(b, a + 0.08), text))
     return out
+
+
+def keyed_words(words: list[Word], edl: Edl) -> list[tuple[CaptionWord, str]]:
+    """Like `caption_words` (fillers kept out) but each word keeps its stable key (the
+    source start time, 2 decimals) so studio caption fixes can be applied later."""
+    out: list[tuple[CaptionWord, str]] = []
+    for w in words:
+        if FILLER.match(w.text.strip()):
+            continue
+        a, b = edl.map(w.start), edl.map(w.end)
+        text = w.text.strip()
+        if a is None or b is None or not text:
+            continue
+        out.append((CaptionWord(a, max(b, a + 0.08), text), f"{w.start:.2f}"))
+    return out
+
+
+def apply_fixes(keyed: list[tuple[CaptionWord, str]], fixes: dict[str, str]) -> list[CaptionWord]:
+    out: list[CaptionWord] = []
+    for w, key in keyed:
+        new = fixes.get(key)
+        if new is None:
+            out.append(w)
+        elif new.strip():
+            out.append(CaptionWord(w.start, w.end, new.strip()))
+    return out

@@ -107,7 +107,7 @@ def test_settings_list_save_validate_and_reset(client: TestClient) -> None:
     fields = {f["key"]: f for f in client.get("/api/v1/settings").json()["fields"]}
     assert fields["ai_provider"]["kind"] == "choice" and "none" in fields["ai_provider"]["choices"]
     assert fields["candidates_k"]["min"] == 5 and fields["candidates_k"]["max"] == 120
-    assert fields["render_style"]["choices"][0] == "classic"
+    assert fields["render_style"]["choices"][:2] == ["template", "gaming"]
     assert fields["render_aspects"]["kind"] == "list"
     assert fields["whisper_model"]["nullable"] and not fields["ollama_model"]["overridden"]
     assert "database_url" not in fields and "secret_key" not in fields  # never editable

@@ -1150,6 +1150,7 @@
       "get": {
         "tags": ["runs"],
         "summary": "Render Options",
+        "description": "Templates, caption presets, fonts and sizes for the template picker and studio.",
         "operationId": "render_options_api_v1_render_options_get",
         "responses": {
           "200": {
@@ -1842,6 +1843,229 @@
           }
         }
       }
+    },
+    "/api/v1/shorts/{short_id}/studio": {
+      "get": {
+        "tags": ["studio"],
+        "summary": "Studio",
+        "description": "The active version's scene and everything the live preview needs.",
+        "operationId": "studio_api_v1_shorts__short_id__studio_get",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioData"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shorts/{short_id}/scene/template": {
+      "post": {
+        "tags": ["studio"],
+        "summary": "Switch Template",
+        "description": "Defaults of another template for this Short, keeping the user's own layers\n(logo, text, emojis) and caption choices. Nothing is saved until a render.",
+        "operationId": "switch_template_api_v1_shorts__short_id__scene_template_post",
+        "parameters": [
+          {
+            "name": "short_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Short Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateSwitch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fonts/{font_id}": {
+      "get": {
+        "tags": ["studio"],
+        "summary": "Font File",
+        "description": "The exact font files the renderer uses, so the preview matches the export.",
+        "operationId": "font_file_api_v1_fonts__font_id__get",
+        "parameters": [
+          {
+            "name": "font_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Font Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images": {
+      "get": {
+        "tags": ["studio"],
+        "summary": "List Images",
+        "description": "Uploaded logos and images (shown at /media/{id}).",
+        "operationId": "list_images_api_v1_images_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ImageOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Images Api V1 Images Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["studio"],
+        "summary": "Upload Image",
+        "operationId": "upload_image_api_v1_images_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_api_v1_images_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/images/{image_id}": {
+      "delete": {
+        "tags": ["studio"],
+        "summary": "Delete Image",
+        "operationId": "delete_image_api_v1_images__image_id__delete",
+        "parameters": [
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2071,7 +2295,8 @@
           "peek",
           "sheet",
           "voice",
-          "words"
+          "words",
+          "image"
         ],
         "title": "AssetKind"
       },
@@ -2149,6 +2374,18 @@
         "type": "object",
         "required": ["id", "kind", "bytes", "duration_s", "width", "height", "codec", "created_at"],
         "title": "AssetOut"
+      },
+      "Body_upload_image_api_v1_images_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": ["file"],
+        "title": "Body_upload_image_api_v1_images_post"
       },
       "Body_upload_source_api_v1_sources_upload_post": {
         "properties": {
@@ -2257,6 +2494,65 @@
         "required": ["id", "reason"],
         "title": "BulkSkip"
       },
+      "Cam": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X",
+            "default": 0.27
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "default": 0.78
+          },
+          "size": {
+            "type": "number",
+            "maximum": 0.7,
+            "minimum": 0.15,
+            "title": "Size",
+            "default": 0.38
+          },
+          "shape": {
+            "type": "string",
+            "enum": ["circle", "rounded", "square"],
+            "title": "Shape",
+            "default": "circle"
+          },
+          "border_color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Border Color",
+            "default": "#A78BFA"
+          },
+          "border_width": {
+            "type": "integer",
+            "maximum": 24.0,
+            "minimum": 0.0,
+            "title": "Border Width",
+            "default": 8
+          },
+          "glow": {
+            "type": "integer",
+            "maximum": 40.0,
+            "minimum": 0.0,
+            "title": "Glow",
+            "default": 22
+          },
+          "visible": {
+            "type": "boolean",
+            "title": "Visible",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "Cam",
+        "description": "Floating facecam (template ``floating_facecam``)."
+      },
       "CandidateOut": {
         "properties": {
           "rank": {
@@ -2323,6 +2619,108 @@
         ],
         "title": "CandidateOut"
       },
+      "Captions": {
+        "properties": {
+          "visible": {
+            "type": "boolean",
+            "title": "Visible",
+            "default": true
+          },
+          "preset": {
+            "type": "string",
+            "title": "Preset",
+            "default": "classic"
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "impact"
+          },
+          "size": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 28.0,
+            "title": "Size",
+            "default": 80
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color",
+            "default": "#FFFFFF"
+          },
+          "highlight": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Highlight",
+            "default": "#FFE135"
+          },
+          "keyword": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Keyword",
+            "default": "#3DDC84"
+          },
+          "outline_color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Outline Color",
+            "default": "#000000"
+          },
+          "outline": {
+            "type": "number",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Outline",
+            "default": 6
+          },
+          "box": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "upper": {
+            "type": "boolean",
+            "title": "Upper",
+            "default": true
+          },
+          "words": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Words",
+            "default": 3
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["highlight", "single", "karaoke", "plain"],
+            "title": "Mode",
+            "default": "highlight"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 0.95,
+            "minimum": 0.08,
+            "title": "Y",
+            "default": 0.7
+          },
+          "animation": {
+            "type": "string",
+            "enum": ["none", "pop"],
+            "title": "Animation",
+            "default": "pop"
+          }
+        },
+        "type": "object",
+        "title": "Captions"
+      },
       "CheckOut": {
         "properties": {
           "name": {
@@ -2383,6 +2781,172 @@
         "type": "object",
         "required": ["start", "end", "text", "heat", "inside"],
         "title": "ContextSentence"
+      },
+      "CutOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "preview_asset_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Preview Asset Id"
+          },
+          "src_w": {
+            "type": "integer",
+            "title": "Src W"
+          },
+          "src_h": {
+            "type": "integer",
+            "title": "Src H"
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration"
+          },
+          "cam": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cam"
+          },
+          "targets": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "cuts": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Cuts"
+          },
+          "zoom_peaks": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Zoom Peaks"
+          },
+          "words": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 4,
+              "minItems": 4
+            },
+            "type": "array",
+            "title": "Words",
+            "description": "caption words: start, end (output s), text, key"
+          },
+          "reaction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reaction"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "preview_asset_id",
+          "src_w",
+          "src_h",
+          "duration",
+          "cam",
+          "targets",
+          "cuts",
+          "zoom_peaks",
+          "words",
+          "reaction"
+        ],
+        "title": "CutOut",
+        "description": "What the studio's live preview needs about the prepared cut."
+      },
+      "Divider": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "enum": ["ribbon", "bar", "line", "none"],
+            "title": "Style",
+            "default": "ribbon"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color",
+            "default": "#7C3AED"
+          },
+          "color2": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color2",
+            "default": "#22D3EE"
+          },
+          "thickness": {
+            "type": "integer",
+            "maximum": 160.0,
+            "minimum": 4.0,
+            "title": "Thickness",
+            "default": 96
+          },
+          "tilt": {
+            "type": "number",
+            "maximum": 12.0,
+            "minimum": -12.0,
+            "title": "Tilt",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "title": "Divider"
       },
       "DoctorOut": {
         "properties": {
@@ -2519,6 +3083,145 @@
         ],
         "title": "EditOut"
       },
+      "Effects": {
+        "properties": {
+          "zoom_punch": {
+            "type": "boolean",
+            "title": "Zoom Punch",
+            "default": true
+          },
+          "zoom_amount": {
+            "type": "number",
+            "maximum": 0.25,
+            "minimum": 0.0,
+            "title": "Zoom Amount",
+            "default": 0.1
+          },
+          "shake": {
+            "type": "boolean",
+            "title": "Shake",
+            "default": false
+          },
+          "flash": {
+            "type": "boolean",
+            "title": "Flash",
+            "default": false
+          },
+          "glitch": {
+            "type": "boolean",
+            "title": "Glitch",
+            "default": false
+          },
+          "speed_lines": {
+            "type": "boolean",
+            "title": "Speed Lines",
+            "default": false
+          },
+          "vignette": {
+            "type": "boolean",
+            "title": "Vignette",
+            "default": false
+          },
+          "letterbox": {
+            "type": "boolean",
+            "title": "Letterbox",
+            "default": false
+          },
+          "color": {
+            "type": "string",
+            "enum": ["none", "vivid", "cinematic"],
+            "title": "Color",
+            "default": "vivid"
+          },
+          "moments": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Moments"
+          }
+        },
+        "type": "object",
+        "title": "Effects"
+      },
+      "FontOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": ["id", "label", "category"],
+        "title": "FontOut"
+      },
+      "Frame": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "enum": ["neon", "solid", "none"],
+            "title": "Style",
+            "default": "neon"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color",
+            "default": "#8B5CF6"
+          },
+          "color2": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color2",
+            "default": "#22D3EE"
+          },
+          "width": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Width",
+            "default": 6
+          },
+          "radius": {
+            "type": "integer",
+            "maximum": 80.0,
+            "minimum": 0.0,
+            "title": "Radius",
+            "default": 34
+          },
+          "glow": {
+            "type": "integer",
+            "maximum": 40.0,
+            "minimum": 0.0,
+            "title": "Glow",
+            "default": 18
+          },
+          "gap": {
+            "type": "integer",
+            "maximum": 48.0,
+            "minimum": 0.0,
+            "title": "Gap",
+            "default": 14
+          },
+          "background": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Background",
+            "default": "#0B0A14"
+          }
+        },
+        "type": "object",
+        "title": "Frame"
+      },
       "GpuOut": {
         "properties": {
           "name": {
@@ -2571,6 +3274,51 @@
         "type": "object",
         "required": ["version", "mode"],
         "title": "HealthOut"
+      },
+      "ImageOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          }
+        },
+        "type": "object",
+        "required": ["id", "name", "width", "height"],
+        "title": "ImageOut"
       },
       "JobCreate": {
         "properties": {
@@ -2833,6 +3581,223 @@
         "required": ["type", "caps", "description"],
         "title": "JobTypeOut"
       },
+      "Layer": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["text", "emoji", "image"],
+            "title": "Kind",
+            "default": "text"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "visible": {
+            "type": "boolean",
+            "title": "Visible",
+            "default": true
+          },
+          "x": {
+            "type": "number",
+            "maximum": 1.2,
+            "minimum": -0.2,
+            "title": "X",
+            "default": 0.5
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.2,
+            "minimum": -0.2,
+            "title": "Y",
+            "default": 0.5
+          },
+          "scale": {
+            "type": "number",
+            "maximum": 4.0,
+            "minimum": 0.2,
+            "title": "Scale",
+            "default": 1.0
+          },
+          "rotation": {
+            "type": "number",
+            "maximum": 45.0,
+            "minimum": -45.0,
+            "title": "Rotation",
+            "default": 0
+          },
+          "opacity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "default": 1
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start",
+            "default": 0
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "anim_in": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fade",
+              "pop",
+              "zoom",
+              "slide_up",
+              "slide_down",
+              "slide_left",
+              "slide_right"
+            ],
+            "title": "Anim In",
+            "default": "pop"
+          },
+          "anim_out": {
+            "type": "string",
+            "enum": ["none", "fade"],
+            "title": "Anim Out",
+            "default": "fade"
+          },
+          "loop": {
+            "type": "string",
+            "enum": ["none", "pulse", "shake", "float"],
+            "title": "Loop",
+            "default": "none"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 160,
+            "title": "Text",
+            "default": ""
+          },
+          "font": {
+            "type": "string",
+            "title": "Font",
+            "default": "impact"
+          },
+          "size": {
+            "type": "integer",
+            "maximum": 400.0,
+            "minimum": 12.0,
+            "title": "Size",
+            "default": 80
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Color",
+            "default": "#FFFFFF"
+          },
+          "stroke_color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Stroke Color",
+            "default": "#000000"
+          },
+          "stroke": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 0.0,
+            "title": "Stroke",
+            "default": 6
+          },
+          "shadow": {
+            "type": "boolean",
+            "title": "Shadow",
+            "default": true
+          },
+          "italic": {
+            "type": "boolean",
+            "title": "Italic",
+            "default": false
+          },
+          "upper": {
+            "type": "boolean",
+            "title": "Upper",
+            "default": true
+          },
+          "max_width": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.2,
+            "title": "Max Width",
+            "default": 0.86
+          },
+          "shape": {
+            "type": "string",
+            "enum": ["none", "box", "pill", "tag", "ribbon", "burst"],
+            "title": "Shape",
+            "default": "none"
+          },
+          "shape_color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$",
+            "title": "Shape Color",
+            "default": "#7C3AED"
+          },
+          "shape_stroke": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Stroke"
+          },
+          "asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Id"
+          },
+          "width": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.03,
+            "title": "Width",
+            "default": 0.25
+          }
+        },
+        "type": "object",
+        "title": "Layer"
+      },
       "Marker": {
         "properties": {
           "type": {
@@ -2924,6 +3889,34 @@
         "enum": ["pass", "warn", "fail"],
         "title": "QcVerdict"
       },
+      "Regions": {
+        "properties": {
+          "split": {
+            "type": "number",
+            "maximum": 0.75,
+            "minimum": 0.25,
+            "title": "Split",
+            "default": 0.42
+          },
+          "frame": {
+            "$ref": "#/components/schemas/Frame"
+          },
+          "cam": {
+            "$ref": "#/components/schemas/Cam"
+          },
+          "divider": {
+            "$ref": "#/components/schemas/Divider"
+          },
+          "fit": {
+            "type": "string",
+            "enum": ["fill", "blur"],
+            "title": "Fit",
+            "default": "fill"
+          }
+        },
+        "type": "object",
+        "title": "Regions"
+      },
       "RenderOptions": {
         "properties": {
           "styles": {
@@ -2933,12 +3926,26 @@
             "type": "array",
             "title": "Styles"
           },
-          "layouts": {
+          "templates": {
             "items": {
-              "$ref": "#/components/schemas/OptionOut"
+              "$ref": "#/components/schemas/TemplateOut"
             },
             "type": "array",
-            "title": "Layouts"
+            "title": "Templates"
+          },
+          "fonts": {
+            "items": {
+              "$ref": "#/components/schemas/FontOut"
+            },
+            "type": "array",
+            "title": "Fonts"
+          },
+          "caption_presets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Captions"
+            },
+            "type": "object",
+            "title": "Caption Presets"
           },
           "aspects": {
             "items": {
@@ -2953,7 +3960,7 @@
           }
         },
         "type": "object",
-        "required": ["styles", "layouts", "aspects", "encoder"],
+        "required": ["styles", "templates", "fonts", "caption_presets", "aspects", "encoder"],
         "title": "RenderOptions"
       },
       "RenderQueued": {
@@ -2973,6 +3980,37 @@
       },
       "RenderRequest": {
         "properties": {
+          "template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "streamer_first",
+                  "gameplay_first",
+                  "dual_vision",
+                  "floating_facecam",
+                  "cinematic"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template",
+            "description": "look of the Short; auto = by facecam detection"
+          },
+          "scene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Scene"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the full look from the studio (overrides template/style)"
+          },
           "style": {
             "anyOf": [
               {
@@ -2983,7 +4021,7 @@
               }
             ],
             "title": "Style",
-            "description": "caption style id"
+            "description": "caption preset id"
           },
           "layout": {
             "anyOf": [
@@ -2995,7 +4033,8 @@
                 "type": "null"
               }
             ],
-            "title": "Layout"
+            "title": "Layout",
+            "description": "deprecated: use template"
           },
           "aspects": {
             "anyOf": [
@@ -3089,9 +4128,21 @@
           },
           "pick_mode": {
             "type": "string",
-            "enum": ["free", "smart", "deep"],
+            "enum": ["free", "smart", "deep", "whole"],
             "title": "Pick Mode",
+            "description": "whole = each (short) source becomes one Short",
             "default": "smart"
+          },
+          "render": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunRender"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "render the picks right away with this template"
           },
           "topic": {
             "anyOf": [
@@ -3372,8 +4423,66 @@
         ],
         "title": "RunOut"
       },
+      "RunRender": {
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "streamer_first",
+              "gameplay_first",
+              "dual_vision",
+              "floating_facecam",
+              "cinematic"
+            ],
+            "title": "Template",
+            "default": "auto"
+          },
+          "aspects": {
+            "items": {
+              "type": "string",
+              "enum": ["4:5", "1:1"]
+            },
+            "type": "array",
+            "title": "Aspects"
+          }
+        },
+        "type": "object",
+        "title": "RunRender"
+      },
       "RunRenderRequest": {
         "properties": {
+          "template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "streamer_first",
+                  "gameplay_first",
+                  "dual_vision",
+                  "floating_facecam",
+                  "cinematic"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template",
+            "description": "look of the Short; auto = by facecam detection"
+          },
+          "scene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Scene"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the full look from the studio (overrides template/style)"
+          },
           "style": {
             "anyOf": [
               {
@@ -3384,7 +4493,7 @@
               }
             ],
             "title": "Style",
-            "description": "caption style id"
+            "description": "caption preset id"
           },
           "layout": {
             "anyOf": [
@@ -3396,7 +4505,8 @@
                 "type": "null"
               }
             ],
-            "title": "Layout"
+            "title": "Layout",
+            "description": "deprecated: use template"
           },
           "aspects": {
             "anyOf": [
@@ -3464,6 +4574,46 @@
         "type": "string",
         "enum": ["queued", "running", "succeeded", "failed", "cancelled"],
         "title": "RunStatus"
+      },
+      "Scene": {
+        "properties": {
+          "v": {
+            "type": "integer",
+            "title": "V",
+            "default": 1
+          },
+          "template": {
+            "type": "string",
+            "enum": [
+              "streamer_first",
+              "gameplay_first",
+              "dual_vision",
+              "floating_facecam",
+              "cinematic"
+            ],
+            "title": "Template",
+            "default": "streamer_first"
+          },
+          "regions": {
+            "$ref": "#/components/schemas/Regions"
+          },
+          "captions": {
+            "$ref": "#/components/schemas/Captions"
+          },
+          "effects": {
+            "$ref": "#/components/schemas/Effects"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/Layer"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Layers"
+          }
+        },
+        "type": "object",
+        "title": "Scene"
       },
       "SegmentOut": {
         "properties": {
@@ -4745,6 +5895,72 @@
         "required": ["sources", "sources_ready", "shorts", "qc", "runs", "renders", "active_jobs"],
         "title": "StatsOut"
       },
+      "StudioData": {
+        "properties": {
+          "version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Id"
+          },
+          "scene": {
+            "$ref": "#/components/schemas/Scene"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Values",
+            "description": "placeholder values ({hook}, ...)"
+          },
+          "caption_overrides": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Caption Overrides"
+          },
+          "cut": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CutOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: render once to enable live editing"
+          }
+        },
+        "type": "object",
+        "required": ["version_id", "scene", "note", "values", "caption_overrides", "cut"],
+        "title": "StudioData"
+      },
       "SystemOut": {
         "properties": {
           "os": {
@@ -4825,6 +6041,70 @@
           "database"
         ],
         "title": "SystemOut"
+      },
+      "TemplateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tagline": {
+            "type": "string",
+            "title": "Tagline"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "needs_cam": {
+            "type": "boolean",
+            "title": "Needs Cam"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Controls"
+          }
+        },
+        "type": "object",
+        "required": ["id", "name", "tagline", "description", "needs_cam", "controls"],
+        "title": "TemplateOut"
+      },
+      "TemplateSwitch": {
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "streamer_first",
+              "gameplay_first",
+              "dual_vision",
+              "floating_facecam",
+              "cinematic"
+            ],
+            "title": "Template"
+          },
+          "scene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Scene"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "current scene (user layers are kept)"
+          }
+        },
+        "type": "object",
+        "required": ["template"],
+        "title": "TemplateSwitch"
       },
       "TimelineOut": {
         "properties": {

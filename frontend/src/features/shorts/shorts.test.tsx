@@ -216,7 +216,7 @@ describe('Studio', () => {
       { method: 'GET', path: /\/shorts\/s1$/, handler: () => detail },
       { method: 'PATCH', path: /\/shorts\/s1$/, handler: () => makeShort({ title: 'New' }) },
     ])
-    renderAt('/shorts/s1')
+    renderAt('/shorts/s1?tab=post')
     expect(await screen.findByText('Versions')).toBeInTheDocument()
     const title = screen.getByRole('textbox', { name: /Title/ })
     await userEvent.clear(title)

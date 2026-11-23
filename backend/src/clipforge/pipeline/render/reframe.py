@@ -223,6 +223,12 @@ def _inside(b: Box, r: Box) -> bool:
     return r.x <= b.cx <= r.x + r.w and r.y <= b.cy <= r.y + r.h
 
 
+def sample_targets(a: Analysis, cam: Box | None) -> list[tuple[float, float | None]]:
+    """(t, horizontal centre to follow) per analysis sample; stored with the cut so any
+    template can compute its own crop path later without re-analysing the video."""
+    return [(s.t, _target(s, cam)) for s in a.samples]
+
+
 def track(
     a: Analysis,
     win_w: float,
@@ -231,12 +237,26 @@ def track(
     dead_zone: float = 0.06,
     max_speed: float = 0.35,
 ) -> list[tuple[float, float]]:
+    return track_targets(
+        sample_targets(a, cam), a.cuts, win_w, dead_zone=dead_zone, max_speed=max_speed
+    )
+
+
+def track_targets(
+    targets: list[tuple[float, float | None]],
+    cuts: list[float],
+    win_w: float,
+    *,
+    dead_zone: float = 0.06,
+    max_speed: float = 0.35,
+) -> list[tuple[float, float]]:
     """Keyframes (t, left edge as a fraction of width) for a window `win_w` wide.
 
     Holds still while the subject stays near the window centre (dead zone), moves at
-    most `max_speed` widths per second, and jumps at scene cuts.
+    most `max_speed` widths per second, and jumps at scene cuts. The browser preview
+    has a line-by-line port of this (studio/track.ts).
     """
-    if not a.samples:
+    if not targets:
         return [(0.0, (1 - win_w) / 2)]
     lo, hi = 0.0, max(0.0, 1 - win_w)
 
@@ -244,24 +264,23 @@ def track(
         """Left edge that centres the window on `centre`, kept inside the frame."""
         return min(max(centre - win_w / 2, lo), hi)
 
-    first = next((x for s in a.samples if (x := _target(s, cam)) is not None), 0.5)
+    first = next((x for _, x in targets if x is not None), 0.5)
     left = clamp(first)
     keys = [(0.0, left)]
     prev_t = 0.0
-    cuts = sorted(a.cuts)
-    for s in a.samples[1:]:
-        tgt = _target(s, cam)
-        crossed_cut = any(prev_t < c <= s.t for c in cuts)
+    cuts = sorted(cuts)
+    for t, tgt in targets[1:]:
+        crossed_cut = any(prev_t < c <= t for c in cuts)
         if tgt is not None:
             want = clamp(tgt)
             if crossed_cut:
                 left = want
             elif abs((left + win_w / 2) - tgt) > dead_zone:
-                step = max_speed * (s.t - prev_t)
+                step = max_speed * (t - prev_t)
                 left = min(max(want, left - step), left + step)
         if abs(left - keys[-1][1]) > 1e-3 or crossed_cut:
-            keys.append((s.t, left))
-        prev_t = s.t
+            keys.append((t, left))
+        prev_t = t
     return _simplify(keys)
 
 

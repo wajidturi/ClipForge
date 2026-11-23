@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from clipforge.core.config import Settings
 from clipforge.core.ids import uuid7
 from clipforge.db.enums import AssetKind, JobStatus, Platform, SourceStatus
-from clipforge.db.models import Job, MediaAsset, Source
+from clipforge.db.models import Job, MediaAsset, Short, ShortVersion, Source
 from clipforge.jobs import queue
 from clipforge.pipeline.ingest.resolver import InvalidSourceError, resolve_url
 from clipforge.pipeline.ingest.timewin import Window
@@ -199,7 +199,18 @@ def delete(db: Session, settings: Settings, src: Source) -> None:
         )
     ):
         queue.request_cancel(db, job.id)
-    db.query(MediaAsset).filter(MediaAsset.owner_id == src.id).delete()
+    # Shorts cut from this source go with it: their renders, cached cuts and previews.
+    short_ids = list(db.scalars(select(Short.id).where(Short.source_id == src.id)))
+    version_ids = (
+        list(db.scalars(select(ShortVersion.id).where(ShortVersion.short_id.in_(short_ids))))
+        if short_ids
+        else []
+    )
+    db.query(MediaAsset).filter(MediaAsset.owner_id.in_([src.id, *short_ids, *version_ids])).delete(
+        synchronize_session=False
+    )
     db.delete(src)
     db.commit()
     shutil.rmtree(source_dir(settings, src.id), ignore_errors=True)
+    for sid in short_ids:
+        shutil.rmtree(settings.resolved_data_dir / "renders" / str(sid), ignore_errors=True)
