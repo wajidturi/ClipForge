@@ -12,7 +12,9 @@ HAS_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 needs_ffmpeg = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe not installed")
 
 
-def make_video(path: Path, seconds: float = 20, *, audio: bool = True) -> Path:
+def make_video(
+    path: Path, seconds: float = 20, *, audio: bool = True, size: str = "640x360"
+) -> Path:
     args = [
         "ffmpeg",
         "-v",
@@ -21,7 +23,7 @@ def make_video(path: Path, seconds: float = 20, *, audio: bool = True) -> Path:
         "-f",
         "lavfi",
         "-i",
-        f"testsrc2=size=640x360:rate=25:duration={seconds}",
+        f"testsrc2=size={size}:rate=25:duration={seconds}",
     ]
     if audio:
         args += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}"]

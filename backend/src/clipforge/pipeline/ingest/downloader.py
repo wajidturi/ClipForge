@@ -345,7 +345,7 @@ class Downloader:
         start_s: float,
         end_s: float,
         *,
-        max_height: int = 1080,
+        max_height: int = 2160,
         progress: ProgressFn | None = None,
         is_cancelled: CancelFn | None = None,
         stem: str = "segment",

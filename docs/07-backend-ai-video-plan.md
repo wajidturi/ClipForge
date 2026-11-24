@@ -13,7 +13,7 @@ How each engine works. Thresholds below are starting values, all configurable an
 - **Resolver:** classify URL → platform, external id; local file → probe with ffprobe.
 - **Metadata:** yt-dlp `--dump-json` (title, channel, duration, upload date, language hint, chapters, heatmap).
 - **Audio download:** bestaudio → m4a; window via `--download-sections`; long streams default to a configurable window (videos up to 12 h are used whole; longer ones default to the last 2 h).
-- **Segment download for render:** best video ≤1080p for `[start−3 s, end+3 s]`.
+- **Segment download for render:** best video ≤2160p (scaled to 1920 px tall in the edit pass, so the 9:16 crop is a full 1080 px wide) for `[start−3 s, end+3 s]`.
 - **Discovery:** RSS feeds (YouTube channel feeds), yt-dlp search (`ytsearchN:`), Twitch category top VODs (public GQL/Helix with own client id), filters (regex, language, ≤ max duration, not used).
 - **Robustness:** retries with jitter, timeouts, cookies-from-browser option, yt-dlp self-update command in Settings, clear error→fix hints.
 

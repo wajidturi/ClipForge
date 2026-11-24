@@ -23,6 +23,7 @@ from clipforge.pipeline.render.reframe import Box, x_expression
 
 OUT_W, OUT_H = 1080, 1920
 FPS = 30
+MAX_EDIT_H = 1920  # a 9:16 crop of a 16:9 frame this tall is 1080 px wide
 
 
 @lru_cache
@@ -66,14 +67,17 @@ def edit_pass(
     *,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> None:
-    """Cut the segment down to the EDL spans (times relative to the segment file)."""
+    """Cut the segment down to the EDL spans (times relative to the segment file).
+    Sources taller than 1920 px (1440p/4K) are scaled to 1920: enough for a 1080 px
+    wide 9:16 crop, without carrying 4K through every later step."""
     parts, labels = [], []
     for i, sp in enumerate(edl.spans):
         a, b = max(0.0, sp.start - segment_start), max(0.0, sp.end - segment_start)
         parts.append(f"[0:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[v{i}]")
         parts.append(f"[0:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS[a{i}]")
         labels.append(f"[v{i}][a{i}]")
-    graph = ";".join(parts) + f";{''.join(labels)}concat=n={len(edl.spans)}:v=1:a=1[v][a]"
+    graph = ";".join(parts) + f";{''.join(labels)}concat=n={len(edl.spans)}:v=1:a=1[vc][a]"
+    graph += f";[vc]scale=-2:'2*trunc(min({MAX_EDIT_H},ih)/2)':flags=lanczos[v]"
     gfile = out.with_suffix(".edit.txt")
     gfile.write_text(graph, encoding="utf-8")
     ffmpeg.run_ffmpeg(

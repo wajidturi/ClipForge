@@ -271,7 +271,7 @@ def test_downloader_section_options(tmp_path: Path) -> None:
     Downloader(ydl_factory=FakeYDL).download_section("https://youtu.be/x", tmp_path, 100, 130)
     opts = FakeYDL.instances[-1].opts
     assert opts["force_keyframes_at_cuts"] and opts["merge_output_format"] == "mp4"
-    assert "height<=1080" in opts["format"]
+    assert "height<=2160" in opts["format"]  # 4K moments: sharp 9:16 crops
 
 
 def test_fetch_info(tmp_path: Path) -> None:

@@ -39,7 +39,7 @@ from clipforge.pipeline.render.scene_render import CutPlan
 from clipforge.pipeline.signals import vision as vision_sig
 from clipforge.services import segments
 
-CUT_VERSION = 1
+CUT_VERSION = 2  # 2: 1080p editor preview
 KEEP_CUTS = 2
 PAD_S = 2.0
 REACTIONS = [
@@ -173,7 +173,7 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
             "-i",
             str(edited),
             "-vf",
-            "scale='min(960,iw)':-2,fps=30",
+            "scale='min(1920,iw)':-2,fps=30",  # 1080p for 16:9
             "-af",
             audio_chain(measured),
             "-c:v",
@@ -181,7 +181,7 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
             "-preset",
             "veryfast",
             "-crf",
-            "26",
+            "22",
             "-g",
             "15",
             "-c:a",

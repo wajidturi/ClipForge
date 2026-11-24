@@ -44,6 +44,8 @@ def ensure_segment(
         src = s.get(Source, source_id)
         if src is None:
             raise PermanentJobError("source was deleted")
+        if src.platform != Platform.file:  # the quality cap is part of a link's cache key
+            stem += f"_{settings.segment_max_height}p"
         if src.duration_s and start_s >= src.duration_s:
             raise PermanentJobError("segment starts after the end of the video")
         rel = (out_dir / f"{stem}.mp4").relative_to(settings.resolved_data_dir).as_posix()
@@ -69,7 +71,14 @@ def ensure_segment(
         path: Path = target
     else:
         path = ingest.make_downloader(settings).download_section(
-            url, out_dir, start_s, end_s, stem=stem, progress=progress, is_cancelled=is_cancelled
+            url,
+            out_dir,
+            start_s,
+            end_s,
+            max_height=settings.segment_max_height,
+            stem=stem,
+            progress=progress,
+            is_cancelled=is_cancelled,
         )
         if path.suffix != ".mp4":
             path = path.rename(target)

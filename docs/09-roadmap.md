@@ -61,7 +61,7 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 **Result:** five gaming templates with attractive defaults, scene-based rendering with a cached cut (re-render = compose only), a live canvas studio matching the export (logo upload, text, emojis, 14 stickers, captions, effects, template-aware controls, drag/resize, undo/redo), one-click Create (whole clip + template), Review & customise after rendering. ADR 0006, docs/pipeline/templates.md.
 
 ### Phase 6c — Long videos ✅ (2026-11-24)
-**Result:** videos up to 12 h used whole (was 4 h → last 2 h), up to 50 Shorts per run with a fair share per source (was 2 per source, 20 per run), length presets (15–60 s, 30–90 s, whole scenes up to 3 min; QC allows 180 s), fast downloads (whole files instead of ffmpeg sections for whole videos and parts over 30 min, live progress, throttle recovery), uploads up to 60 GB.
+**Result:** videos up to 12 h used whole (was 4 h → last 2 h), up to 50 Shorts per run with a fair share per source (was 2 per source, 20 per run), length presets (15–60 s, 30–90 s, whole scenes up to 3 min; QC allows 180 s), fast downloads (whole files instead of ffmpeg sections for whole videos and parts over 30 min, live progress, throttle recovery), uploads up to 60 GB, sharp 1080p crops (link moments fetched up to 4K, 1080p editor preview).
 
 ### Phase 7 — Creators, discovery & live
 **Tasks:** creators CRUD + clip policies; discovery rules (RSS/search/category); past-streams lists; live recorder ring buffer; live chat readers; spike → candidate → render; live hunt; live page.

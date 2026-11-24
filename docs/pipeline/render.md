@@ -27,6 +27,8 @@ flowchart LR
 
 **Layouts:** `auto` (stack when a facecam is found, full when people are on both sides, else crop), `crop`, `stack`, `bubble` (round cam over full-screen game), `full` (whole frame over a blurred copy). Asking for stack/bubble without a detectable cam falls back to crop.
 
+**Quality:** every Short is 1080×1920. Moments from links are fetched up to 4K (`CF_SEGMENT_MAX_HEIGHT`, default 2160) and the edit pass scales anything taller than 1920 px down to 1920, so a 9:16 crop of a 16:9 video is a true 1080 px wide (from a 1080p source it is about 608 px, upscaled). Uploads keep their own resolution. The studio's editor preview is 1080p (CRF 22).
+
 **Extra sizes:** 4:5 and 1:1 rendered from the same plan (crop or full), with captions re-laid out for that canvas (libass stretches mismatched canvases).
 
 ## Findings while building (fixed)

@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     max_source_hours: float = Field(default=12.0, gt=0)  # longer sources need a window
     default_window_hours: float = Field(default=2.0, gt=0)  # applied to over-long sources
     max_upload_mb: int = Field(default=60_000, gt=0)  # a 10 h 1080p recording
+    # Moments from links are fetched up to this height: a 9:16 crop of a 16:9 video
+    # needs a 1920 px tall source (1440p/4K) to be a true 1080 px wide Short.
+    segment_max_height: int = Field(default=2160, ge=360, le=4320)
 
     # Analysis (Phase 3)
     whisper_model: str | None = None  # None = small on GPU, base on CPU
