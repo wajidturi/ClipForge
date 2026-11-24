@@ -44,9 +44,9 @@ class Settings(BaseSettings):
     ytdlp_cookies_browser: str | None = None
     ytdlp_retries: int = Field(default=5, ge=0, le=20)
     ytdlp_socket_timeout: float = Field(default=30, gt=0)
-    max_source_hours: float = Field(default=4.0, gt=0)  # longer sources need a window
+    max_source_hours: float = Field(default=12.0, gt=0)  # longer sources need a window
     default_window_hours: float = Field(default=2.0, gt=0)  # applied to over-long sources
-    max_upload_mb: int = Field(default=20_000, gt=0)
+    max_upload_mb: int = Field(default=60_000, gt=0)  # a 10 h 1080p recording
 
     # Analysis (Phase 3)
     whisper_model: str | None = None  # None = small on GPU, base on CPU

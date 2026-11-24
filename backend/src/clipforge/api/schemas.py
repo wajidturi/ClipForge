@@ -249,7 +249,7 @@ class RunRender(BaseModel):
 
 class RunCreate(BaseModel):
     source_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
-    n: int = Field(default=5, ge=1, le=20, description="how many Shorts to pick")
+    n: int = Field(default=5, ge=1, le=50, description="how many Shorts to pick")
     pick_mode: Literal["free", "smart", "deep", "whole"] = Field(
         default="smart", description="whole = each (short) source becomes one Short"
     )
@@ -258,6 +258,10 @@ class RunCreate(BaseModel):
     )
     topic: str | None = Field(default=None, max_length=200, description="e.g. a game or a name")
     ai_model: str | None = Field(default=None, max_length=100)
+    length: Literal["short", "medium", "long"] = Field(
+        default="short",
+        description="short 15-60 s, medium 30-90 s, long = whole scenes up to 3 min",
+    )
 
 
 class RunOut(BaseModel):

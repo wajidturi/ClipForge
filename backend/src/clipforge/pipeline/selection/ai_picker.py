@@ -23,9 +23,12 @@ def ai_picks(
     topic: str | None = None,
     deep: bool = False,
     timeout: float = 300.0,
+    length: tuple[float, float] = (15, 60),
 ) -> tuple[list[Pick], Usage, list[str]]:
     by_id = {c.id: c for c in candidates}
-    user = select_user_message(candidates, n=n, credits=credits, topic=topic, deep=deep)
+    user = select_user_message(
+        candidates, n=n, credits=credits, topic=topic, deep=deep, length=length
+    )
     answer, usage = provider.complete_json(SELECT_SYSTEM, user, AIPickList, timeout=timeout)
     notes: list[str] = []
     picks: list[Pick] = []

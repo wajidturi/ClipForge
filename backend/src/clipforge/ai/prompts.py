@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from clipforge.pipeline.selection import Candidate
 
 SELECT_SYSTEM = """You choose the best moments of long videos to turn into vertical Shorts.
-Each Short is 15-60 seconds long.
+Each Short is as long as the request says; the candidates already fit that length.
 
 You get numbered CANDIDATES. Each has a time range, signal tags and its words.
 Tags mean: LOUD = volume spike, CHAT = chat suddenly busy, CLIPPED = viewers clipped it,
@@ -75,9 +75,11 @@ def select_user_message(
     credits: dict[str, str | None],
     topic: str | None,
     deep: bool,
+    length: tuple[float, float] = (15, 60),
 ) -> str:
     lines = [
         f"Pick the best {n} candidate(s) (fewer if fewer are good).",
+        f"Each Short should be {length[0]:.0f}-{length[1]:.0f} seconds long.",
         f"Topic to prefer: {topic}." if topic else "",
         "",
         "CANDIDATES:",

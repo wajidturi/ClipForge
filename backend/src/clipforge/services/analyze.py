@@ -31,6 +31,7 @@ from clipforge.db.enums import AssetKind, AssetOwner, Platform, SignalType, Sour
 from clipforge.db.models import MediaAsset, Segment, Signal, Source, Transcript
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobCancelledError, JobContext, PermanentJobError
+from clipforge.pipeline.ingest.downloader import is_long_section
 from clipforge.pipeline.ingest.timewin import Window
 from clipforge.pipeline.signals import Spike, text_cues
 from clipforge.pipeline.signals import audio as audio_sig
@@ -240,13 +241,22 @@ class _Run:
             inp = original
         else:
             prog(0, "downloading a small copy of the video")
+            # Only a real "part of the video" choice downloads a section: sections go
+            # through ffmpeg (one slow stream, no progress); whole files are ~100x faster.
+            # (`window` always has an end: it defaults to the duration.)
+            partial = src.window_start_s is not None or src.window_end_s is not None
+            # a long part: whole (fast) download; the encode below cuts the window
+            whole = not partial or is_long_section(window)
             inp = ingest.make_downloader(self.settings).download_proxy(
                 src.url,
                 self.dir,
-                window if (window.start_s or window.end_s) else None,
+                None if whole else window,
+                # first half of this step's bar; "downloading 12.3 of 34.0 MB"
+                progress=lambda pct, msg: prog(max(pct, 0.0) / 2, f"video copy: {msg}"),
                 is_cancelled=self.cancelled,
             )
-            start, end = 0.0, None  # the download already starts at the window
+            # a section download already starts at the window
+            start, end = (window.start_s, window.end_s) if partial and whole else (0.0, None)
         args = ["-ss", f"{start:.3f}"] if start else []
         args += ["-i", str(inp)]
         if end is not None:

@@ -1747,6 +1747,13 @@ export interface components {
       topic?: string | null
       /** Ai Model */
       ai_model?: string | null
+      /**
+       * Length
+       * @description short 15-60 s, medium 30-90 s, long = whole scenes up to 3 min
+       * @default short
+       * @enum {string}
+       */
+      length?: 'short' | 'medium' | 'long'
     }
     /** RunDetail */
     RunDetail: {

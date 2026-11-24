@@ -11,15 +11,15 @@ flowchart LR
   K -->|free| H[heuristic picker]
   K -->|smart / deep| A[AI picker<br/>Ollama, schema JSON]
   A -- AI down or invalid --> H
-  H & A --> V[validate<br/>whole sentences · speech ≥ 12 s · ≤ 90 s<br/>no overlap · ≤ 2 per source]
+  H & A --> V[validate<br/>whole sentences · enough speech · length cap<br/>no overlap · fair share per source]
   V -- fewer than N --> T[top up from candidates] --> V
   V --> S[(shorts + parts,<br/>candidates, run.result)]
 ```
 
 | Module | Role |
 |---|---|
-| `pipeline/selection/windows.py` | Every sentence-aligned window 15–60 s; score = 0.65·peak heat + 0.35·mean, +6 payoff in back half, −8 peak at the very start (no premise), +3 per extra signal type, −10 mid-thought opener ("and…", "he…"), −20 under 12 s of speech. Greedy non-overlapping top K. Flat windows (no peak) score 0 |
-| `pipeline/selection/heuristic.py` | "No AI" mode: best candidates, ≤ 2 per source, near-duplicate texts skipped (Jaccard > 0.5), hook/title/hashtags from keywords and creator |
+| `pipeline/selection/windows.py` | Every sentence-aligned window of the run's **length preset** (short 15–60 s, medium 30–90 s with a 60 s target, long/whole scenes 45–170 s with a 100 s target, capped at 90/120/180 s after snapping); score = 0.65·peak heat + 0.35·mean, +6 payoff in back half, −8 peak at the very start (no premise), +3 per extra signal type, −10 mid-thought opener ("and…", "he…"), −20 under the preset's minimum speech (12/20/30 s), −8·|length − target|/target for medium/long. Greedy non-overlapping top K. Flat windows (no peak) score 0 |
+| `pipeline/selection/heuristic.py` | "No AI" mode: best candidates, a fair share per source (max(2, ⌈N / sources⌉), so one long video can give all N, up to 50), near-duplicate texts skipped (Jaccard > 0.5), hook/title/hashtags from keywords and creator |
 | `pipeline/selection/ai_picker.py` | AI chooses candidate **ids** only; it may move start/end by ≤ 10 s; unknown ids ignored; a score of 0 falls back to the signal score |
 | `pipeline/selection/validate.py` | Snap to whole sentences; reject too short/long, overlapping, over the per-source cap; clean hook (≤ 6 words, caps), title (≤ 70), hashtags (3–5 + #shorts), keywords (≤ 3) |
 | `pipeline/selection/callbacks.py` | Claim ("I bet…", "watch me…") 1 min–3 h before a hot payoff sharing a noun → listed on the run page |

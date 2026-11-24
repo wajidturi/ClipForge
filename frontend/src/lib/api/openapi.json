@@ -4120,7 +4120,7 @@
           },
           "n": {
             "type": "integer",
-            "maximum": 20.0,
+            "maximum": 50.0,
             "minimum": 1.0,
             "title": "N",
             "description": "how many Shorts to pick",
@@ -4168,6 +4168,13 @@
               }
             ],
             "title": "Ai Model"
+          },
+          "length": {
+            "type": "string",
+            "enum": ["short", "medium", "long"],
+            "title": "Length",
+            "description": "short 15-60 s, medium 30-90 s, long = whole scenes up to 3 min",
+            "default": "short"
           }
         },
         "type": "object",

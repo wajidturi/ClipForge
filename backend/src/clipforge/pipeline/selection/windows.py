@@ -10,6 +10,8 @@ greedily (best first), so the candidate list covers different moments.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from typing import Literal
 
 from clipforge.pipeline.selection import Candidate, Sent
 
@@ -18,6 +20,28 @@ BAD_OPENERS = re.compile(
     r"yeah|yes|no|okay|ok|right|um|uh)\b",
     re.I,
 )
+
+
+LengthPreset = Literal["short", "medium", "long"]
+
+
+@dataclass(frozen=True)
+class Lengths:
+    """How long candidate windows are, how much speech they need, and the hard cap
+    after snapping to whole sentences / AI nudges (YouTube Shorts allow 3 minutes)."""
+
+    min_len: float
+    max_len: float
+    min_talk: float
+    max_span: float
+    target: float | None = None  # preferred length; None = shortest good window wins
+
+
+LENGTHS: dict[str, Lengths] = {
+    "short": Lengths(15, 60, 12, 90),  # classic Shorts
+    "medium": Lengths(30, 90, 20, 120, target=60),
+    "long": Lengths(45, 170, 30, 180, target=100),  # a whole scene, up to 3 minutes
+}
 
 
 def talk_time(sents: list[Sent]) -> float:
@@ -31,8 +55,10 @@ def _words(text: str, n: int, from_end: bool = False) -> str:
     return ("… " + " ".join(w[-n:])) if from_end else (" ".join(w[:n]) + " …")
 
 
-def window_score(sents: list[Sent], *, min_talk: float) -> float:
-    """0..100. Peak heat dominates; build-up, payoff position and speech amount adjust."""
+def window_score(sents: list[Sent], *, min_talk: float, target: float | None = None) -> float:
+    """0..100. Peak heat dominates; build-up, payoff position and speech amount adjust.
+    With a `target` length, windows near it are preferred (otherwise the mean heat makes
+    the shortest window around a peak win, which is right for classic Shorts only)."""
     heats = [s.heat for s in sents]
     peak = max(heats)
     if peak <= 0:
@@ -50,6 +76,8 @@ def window_score(sents: list[Sent], *, min_talk: float) -> float:
     score += 3 * max(0, len(kinds) - 1)  # independent signals agree
     if BAD_OPENERS.match(sents[0].text):
         score -= 10
+    if target:
+        score -= 8 * abs(span - target) / target
     if talk_time(sents) < min_talk:
         score -= 20
     # the payoff should not be the very last half second of speech
@@ -64,6 +92,7 @@ def build_candidates(
     min_len: float = 15.0,
     max_len: float = 60.0,
     min_talk: float = 12.0,
+    target: float | None = None,
     k: int = 30,
     exclude: list[tuple[float, float]] | None = None,
     start_id: int = 1,
@@ -79,7 +108,7 @@ def build_candidates(
             if span < min_len:
                 continue
             win = sents[i : j + 1]
-            s = window_score(win, min_talk=min_talk)
+            s = window_score(win, min_talk=min_talk, target=target)
             if s > 0:
                 scored.append((s, i, j))
     scored.sort(key=lambda x: (-x[0], x[1]))

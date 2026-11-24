@@ -6,12 +6,15 @@
   3. picks: no-AI heuristic, or AI (smart = candidate summaries, deep = full text)
      - AI unreachable/invalid -> falls back to the heuristic and says so
      - AI picks fewer than asked -> topped up with the best remaining candidates
-  4. validates (whole sentences, speech >= 12 s, <= 90 s, no overlaps, <= 2 per source)
+  4. validates (whole sentences, enough speech, length cap of the chosen preset,
+     no overlaps, a fair share per source)
   5. saves candidates and Shorts (status `picked`) for review/rendering
 """
 
 from __future__ import annotations
 
+import functools
+import math
 import uuid
 from dataclasses import asdict
 from typing import Any, Literal
@@ -45,7 +48,7 @@ from clipforge.pipeline.selection.ai_picker import ai_picks
 from clipforge.pipeline.selection.callbacks import find_callbacks
 from clipforge.pipeline.selection.heuristic import heuristic_picks
 from clipforge.pipeline.selection.validate import validate
-from clipforge.pipeline.selection.windows import build_candidates
+from clipforge.pipeline.selection.windows import LENGTHS, LengthPreset, build_candidates
 from clipforge.services import settings_store, versions
 
 log = get_logger(__name__)
@@ -68,6 +71,7 @@ def create_run(
     topic: str | None = None,
     ai_model: str | None = None,
     render: dict[str, Any] | None = None,
+    length: LengthPreset = "short",
 ) -> tuple[Run, Job]:
     if not source_ids:
         raise RunInputError("choose at least one source")
@@ -86,6 +90,7 @@ def create_run(
             "pick_mode": pick_mode,
             "topic": topic,
             "render": render,
+            "length": length,
         },
         status=RunStatus.queued,
         ai_provider=settings.ai_provider if uses_ai else None,
@@ -211,17 +216,30 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         run_uses_ai = run.ai_provider is not None
     _set_run(run_id, status=RunStatus.running, started_at=utcnow(), error=None)
     n, mode, topic = int(params["n"]), str(params["pick_mode"]), params.get("topic")
+    lengths = LENGTHS.get(str(params.get("length") or "short"), LENGTHS["short"])
+    # A fair share per source: several sources still give variety, one long video can
+    # give all N (old rule: at most 2 per source per run).
+    with_text = sum(1 for lst in sents.values() if lst) or 1
+    per_source = max(2, math.ceil(n / with_text))
     credits = {sid: (src.channel_name or None) for sid, src in srcs.items()}
     warnings: list[str] = []
 
     ctx.progress(5, "finding candidate moments")
-    k = settings.candidates_k * (2 if mode == "deep" else 1)
+    k = max(settings.candidates_k, 2 * n) * (2 if mode == "deep" else 1)
     pool: list[Candidate] = []
     for sid, lst in sents.items():
         if not lst:
             warnings.append(f"{srcs[sid].title or sid}: no transcript sentences")
             continue
-        pool += build_candidates(lst, k=k, exclude=used.get(sid))
+        pool += build_candidates(
+            lst,
+            k=k,
+            exclude=used.get(sid),
+            min_len=lengths.min_len,
+            max_len=lengths.max_len,
+            min_talk=lengths.min_talk,
+            target=lengths.target,
+        )
     pool.sort(key=lambda c: -c.score)
     pool = pool[:k]
     for i, c in enumerate(pool, start=1):
@@ -245,7 +263,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         picks: list[Pick]
         provider = make_provider(settings, ai_model) if mode != "free" and run_uses_ai else None
         if provider is None:
-            picks = heuristic_picks(pool, n=n, credit_for=credits)
+            picks = heuristic_picks(pool, n=n, credit_for=credits, per_source=per_source)
         else:
             ctx.progress(25, f"asking {provider.model} to choose")
             try:
@@ -257,19 +275,31 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
                     topic=topic,
                     deep=mode == "deep",
                     timeout=settings.ai_timeout_s,
+                    length=(lengths.min_len, lengths.max_len),
                 )
                 warnings += notes
             except AIError as e:
                 warnings.append(f"AI unavailable, used signal scores instead: {e}")
-                picks = heuristic_picks(pool, n=n, credit_for=credits)
+                picks = heuristic_picks(pool, n=n, credit_for=credits, per_source=per_source)
         ctx.check_cancelled()
 
         ctx.progress(85, "checking the picks")
-        accepted, rejected = validate(picks, sents, n=n, used=used)
+        rules = functools.partial(
+            validate,
+            per_source=per_source,
+            min_talk=lengths.min_talk,
+            max_span=lengths.max_span,
+        )
+        accepted, rejected = rules(picks, sents, n=n, used=used)
         if len(accepted) < n:  # top up with the best remaining candidates
             taken = {p.candidate_id for p in accepted}
-            extra = heuristic_picks([c for c in pool if c.id not in taken], n=n, credit_for=credits)
-            more, more_rej = validate(
+            extra = heuristic_picks(
+                [c for c in pool if c.id not in taken],
+                n=n,
+                credit_for=credits,
+                per_source=per_source,
+            )
+            more, more_rej = rules(
                 extra,
                 sents,
                 n=n - len(accepted),

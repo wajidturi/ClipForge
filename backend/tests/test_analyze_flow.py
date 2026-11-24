@@ -215,6 +215,50 @@ def test_link_gets_chat_and_replay_signals(
     assert "messages" in tl["steps"]["chat"]
 
 
+def test_whole_link_downloads_the_whole_video_copy_with_progress(
+    client: TestClient, tmp_path: Path, video: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A link without "only part of the video" must not download a section (sections
+    stream through ffmpeg: slow, no progress, no throttling recovery)."""
+    windows: list[Window | None] = []
+    steps: list[str] = []
+
+    class WithVideo(LinkDownloader):
+        def download_proxy(
+            self, url: str, out_dir: Path, window: Window | None = None, **kw: Any
+        ) -> Path:
+            windows.append(window)
+            kw["progress"](50.0, "downloading 1.0 of 2.0 MB")
+            return Path(shutil.copy(video, out_dir / "proxy_src.mp4"))
+
+    real_slice = analyze_service._Run.slice
+
+    def spy(self: Any, lo: float, hi: float) -> Any:
+        report = real_slice(self, lo, hi)
+
+        def wrapped(pct: float, step: str | None = None) -> None:
+            if step:
+                steps.append(step)
+            report(pct, step)
+
+        return wrapped
+
+    monkeypatch.setattr(analyze_service._Run, "slice", spy)
+    monkeypatch.setenv("CF_VISION_ENABLED", "true")
+    get_settings.cache_clear()
+
+    def no_face_model(_d: Path) -> Path:
+        raise RuntimeError("offline")  # motion only; no network in tests
+
+    monkeypatch.setattr(vision_sig, "ensure_face_model", no_face_model)
+    dl = WithVideo(make_audio(tmp_path / "a.m4a", 10), None)
+    monkeypatch.setattr(ingest_service, "make_downloader", lambda s: dl)
+    client.post("/api/v1/sources", json={"url": "https://youtu.be/abcdefghijk"})
+    run_all()
+    assert windows == [None]
+    assert "video copy: downloading 1.0 of 2.0 MB" in steps
+
+
 def test_failing_optional_step_is_a_warning_not_a_failure(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

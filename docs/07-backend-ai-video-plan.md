@@ -12,7 +12,7 @@ How each engine works. Thresholds below are starting values, all configurable an
 ## 2. Ingestion
 - **Resolver:** classify URL → platform, external id; local file → probe with ffprobe.
 - **Metadata:** yt-dlp `--dump-json` (title, channel, duration, upload date, language hint, chapters, heatmap).
-- **Audio download:** bestaudio → m4a; window via `--download-sections`; long streams default to a configurable window (e.g. last 2 h of a VOD, max 4 h).
+- **Audio download:** bestaudio → m4a; window via `--download-sections`; long streams default to a configurable window (videos up to 12 h are used whole; longer ones default to the last 2 h).
 - **Segment download for render:** best video ≤1080p for `[start−3 s, end+3 s]`.
 - **Discovery:** RSS feeds (YouTube channel feeds), yt-dlp search (`ytsearchN:`), Twitch category top VODs (public GQL/Helix with own client id), filters (regex, language, ≤ max duration, not used).
 - **Robustness:** retries with jitter, timeouts, cookies-from-browser option, yt-dlp self-update command in Settings, clear error→fix hints.
@@ -40,7 +40,7 @@ How each engine works. Thresholds below are starting values, all configurable an
 ## 5. Selection
 - **Windows:** slide over sentences; window = sentence-aligned span 12–60 s (story-length, not fixed); score = max+mean heat, tag diversity, premise-before-peak heuristic (noun/named entity before spike), penalty for pronoun/conjunction openers and menu/silence.
 - **Candidates:** top K (30, expandable to 60) with head…tail text.
-- **Free mode:** greedy pick by score with constraints (no overlap, ≤2 per source, distinct points via text similarity), rule-based hook from top keywords.
+- **Free mode:** greedy pick by score with constraints (no overlap, a fair share per source, distinct points via text similarity), rule-based hook from top keywords.
 - **Smart/Deep (AI):** one structured request per run:
   - System prompt (cached, stable): selection rules (premise+payoff, picture-first, topic only, no spoilers/leaks, credit, stands alone, reveal in last 40 %, length follows story), text rules (hook ≤6 words caps, title ≤70 chars, 3–5 hashtags, keywords).
   - User content: candidates (Smart) or full transcripts with tags (Deep), user's topic/language, N. Transcript/chat text is wrapped as data, never instructions.

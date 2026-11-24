@@ -186,6 +186,18 @@
       }
     },
     "count": "How many Shorts",
+    "length": "Length",
+    "lengths": {
+      "short": {
+        "name": "15–60 s",
+        "help": "Classic Shorts: the tightest window around each moment."
+      },
+      "medium": { "name": "30–90 s", "help": "A bit more build-up before each moment." },
+      "long": {
+        "name": "Whole scenes",
+        "help": "45 s to 3 min: keeps the whole scene when it runs long."
+      }
+    },
     "topic": "Topic",
     "topicPh": "Optional: e.g. GTA 6, a name, a game",
     "start": "Pick {{n}} moments",

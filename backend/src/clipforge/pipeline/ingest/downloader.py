@@ -18,11 +18,25 @@ from typing import Any
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled, download_range_func
 
+from clipforge.core import ffmpeg
 from clipforge.db.enums import Platform
 from clipforge.pipeline.ingest.resolver import InvalidSourceError, platform_from_extractor
 from clipforge.pipeline.ingest.timewin import Window
 
 ProgressFn = Callable[[float, str], None]
+THROTTLED_BYTES_S = 100_000  # a stream slower than 100 KB/s is treated as throttled
+# Sections are streamed through ffmpeg over one connection (slow, easily throttled, no
+# progress). Up to this length that is still quick; longer parts of a video are faster
+# as a whole-file download (parallel, resumable, throttle-aware) cut locally.
+LONG_SECTION_S = 30 * 60
+
+
+def is_long_section(window: Window | None) -> bool:
+    return window is not None and (
+        window.end_s is None or window.end_s - window.start_s > LONG_SECTION_S
+    )
+
+
 CancelFn = Callable[[], bool]
 YdlFactory = Callable[[dict[str, Any]], Any]
 
@@ -153,6 +167,9 @@ class Downloader:
             "fragment_retries": self.retries,
             "extractor_retries": 2,
             "socket_timeout": self.socket_timeout,
+            # YouTube sometimes throttles one session to a few KB/s; below this rate
+            # yt-dlp fetches fresh stream URLs and continues instead of crawling.
+            "throttledratelimit": THROTTLED_BYTES_S,
             "consoletitle": False,
             "color": {"stdout": "never", "stderr": "never"},
         }
@@ -233,7 +250,33 @@ class Downloader:
         is_cancelled: CancelFn | None = None,
         stem: str = "audio",
     ) -> Path:
-        """Best audio, converted to m4a. With a window only that range is fetched."""
+        """Best audio, converted to m4a. With a window only that range is fetched
+        (long windows: the whole audio, then cut exactly with ffmpeg)."""
+        if window is not None and is_long_section(window):
+            full = self.download_audio(
+                url,
+                out_dir,
+                None,
+                progress=progress,
+                is_cancelled=is_cancelled,
+                stem=f"{stem}_full",
+            )
+            out = out_dir / f"{stem}.m4a"
+            args = ["-ss", f"{window.start_s:.3f}", "-i", str(full)]
+            if window.end_s is not None:
+                args += ["-t", f"{window.end_s - window.start_s:.3f}"]
+            args += ["-vn", "-c:a", "aac", "-b:a", "160k", str(out)]
+            if progress:
+                progress(99.0, "cutting the chosen part")
+            try:
+                ffmpeg.run_ffmpeg(
+                    args,
+                    duration_s=(window.end_s - window.start_s) if window.end_s else None,
+                    is_cancelled=is_cancelled,
+                )
+            finally:
+                full.unlink(missing_ok=True)
+            return out
         log = _Logger()
         extra: dict[str, Any] = {
             "format": "bestaudio/best",

@@ -124,6 +124,7 @@ describe('Create page', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /huge reaction/i }))
     await userEvent.click(await screen.findByRole('radio', { name: /cinematic gaming/i }))
     await userEvent.click(screen.getByRole('radio', { name: /deep/i }))
+    await userEvent.click(screen.getByRole('radio', { name: /whole scenes/i }))
     await userEvent.type(screen.getByLabelText('Topic'), 'GTA 6')
     await userEvent.click(start)
     expect(await screen.findByText('KAI JUMPS THE BRIDGE')).toBeInTheDocument() // navigated to the run
@@ -133,6 +134,7 @@ describe('Create page', () => {
       n: 5,
       pick_mode: 'deep',
       topic: 'GTA 6',
+      length: 'long',
       render: { template: 'cinematic', aspects: [] },
     })
   })

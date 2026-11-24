@@ -11,6 +11,9 @@ import { cn, formatClock } from '@/lib/utils'
 import { PageHeader } from './Dashboard'
 
 const MODES: PickMode[] = ['smart', 'deep', 'free', 'whole']
+const LENGTHS = ['short', 'medium', 'long'] as const
+type Length = (typeof LENGTHS)[number]
+const MAX_SHORTS = 50
 
 function AIStatusLine() {
   const ai = useAIStatus()
@@ -35,6 +38,7 @@ export function Create() {
   const [n, setN] = useState(5)
   const [mode, setMode] = useState<PickMode>('smart')
   const [topic, setTopic] = useState('')
+  const [length, setLength] = useState<Length>('short')
   const [template, setTemplate] = useState<TemplateChoice>('auto')
   const [autoRender, setAutoRender] = useState(true)
   const opts = useRenderOptions()
@@ -50,6 +54,7 @@ export function Create() {
         n,
         pick_mode: mode,
         topic: topic.trim() || null,
+        length,
         render: autoRender ? { template, aspects: [] } : null,
       },
       { onSuccess: (run) => navigate(`/runs/${run.id}`) },
@@ -149,12 +154,43 @@ export function Create() {
                 <input
                   type="number"
                   min={1}
-                  max={20}
+                  max={MAX_SHORTS}
                   value={n}
-                  onChange={(e) => setN(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                  onChange={(e) =>
+                    setN(Math.max(1, Math.min(MAX_SHORTS, Number(e.target.value) || 1)))
+                  }
                   className="h-9 w-24 rounded-lg border border-border bg-surface-2 px-3"
                 />
               </label>
+            )}
+            {mode !== 'whole' && (
+              <div className="text-sm">
+                <span className="mb-1 block font-medium">{t('create.length')}</span>
+                <div
+                  role="radiogroup"
+                  aria-label={t('create.length')}
+                  className="inline-flex rounded-lg border border-border bg-surface-2 p-0.5"
+                >
+                  {LENGTHS.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      role="radio"
+                      aria-checked={length === l}
+                      onClick={() => setLength(l)}
+                      className={cn(
+                        'h-8 rounded-md px-3 transition',
+                        length === l ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+                      )}
+                    >
+                      {t(`create.lengths.${l}.name`)}
+                    </button>
+                  ))}
+                </div>
+                <span className="mt-1 block text-xs text-muted">
+                  {t(`create.lengths.${length}.help`)}
+                </span>
+              </div>
             )}
             <label className="min-w-60 flex-1 text-sm">
               <span className="mb-1 block font-medium">{t('create.topic')}</span>

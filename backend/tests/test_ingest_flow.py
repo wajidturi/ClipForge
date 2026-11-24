@@ -217,13 +217,22 @@ def test_same_video_different_link_is_deduplicated(
 
 
 def test_long_video_gets_default_window(client: TestClient, fake: FakeDownloader) -> None:
-    fake.info["duration"] = 8 * 3600
+    fake.info["duration"] = 14 * 3600  # over the 12 h limit
     r = add(client, "https://youtu.be/dQw4w9WgXcQ").json()
     run_jobs()
     src = client.get(f"/api/v1/sources/{r['source']['id']}").json()
-    assert (src["window_start_s"], src["window_end_s"]) == (6 * 3600, 8 * 3600)
+    assert (src["window_start_s"], src["window_end_s"]) == (12 * 3600, 14 * 3600)
     assert "last 2 h" in src["window_note"]
-    assert fake.windows == [Window(6 * 3600, 8 * 3600)]
+    assert fake.windows == [Window(12 * 3600, 14 * 3600)]
+
+
+def test_ten_hour_video_is_used_whole(client: TestClient, fake: FakeDownloader) -> None:
+    fake.info["duration"] = 10 * 3600
+    r = add(client, "https://youtu.be/dQw4w9WgXcQ").json()
+    run_jobs()
+    src = client.get(f"/api/v1/sources/{r['source']['id']}").json()
+    assert (src["window_start_s"], src["window_end_s"], src["window_note"]) == (None, None, None)
+    assert fake.windows == [None]
 
 
 def test_explicit_window_is_used(client: TestClient, fake: FakeDownloader) -> None:

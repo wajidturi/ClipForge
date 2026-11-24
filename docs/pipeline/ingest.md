@@ -33,7 +33,8 @@ flowchart TD
 
 - **Duplicates:** the same video added twice (any link form, e.g. `youtu.be/ID` and `watch?v=ID`) returns the existing source. Uploads are deduplicated by SHA-256 of the file. A failed source added again is retried.
 - **Live streams** are refused here (they belong to Live clipping, Phase 7).
-- **Long videos:** over `CF_MAX_SOURCE_HOURS` (4 h) without a window → the last `CF_DEFAULT_WINDOW_HOURS` (2 h) are used and the source shows a note.
+- **Long videos:** up to `CF_MAX_SOURCE_HOURS` (12 h) are used whole. Longer ones without a window → the last `CF_DEFAULT_WINDOW_HOURS` (2 h) are used and the source shows a note.
+- **Download speed:** a whole video downloads over parallel, resumable connections; streams slower than 100 KB/s are treated as throttled and re-fetched. Parts of a video up to 30 min are fetched as a section (ffmpeg); longer parts are downloaded whole and cut locally (exact, much faster).
 - **Times are always full-video times.** A source ingested with window 1:00:00–1:30:00 keeps `window_start_s=3600`; later steps add it to audio-relative times.
 - **Retries:** network/rate-limit errors retry (3 attempts, backoff); bad input (private, removed, unsupported, no audio) fails at once with a hint.
 
@@ -51,9 +52,9 @@ yt-dlp cuts ranges with FFmpeg stream copy, which can only start at a keyframe/c
 | `CF_YTDLP_COOKIES_BROWSER` | – | e.g. `firefox`: borrow that browser's cookies when a site asks for sign-in/bot check |
 | `CF_YTDLP_RETRIES` | 5 | network retries inside yt-dlp |
 | `CF_YTDLP_SOCKET_TIMEOUT` | 30 | seconds |
-| `CF_MAX_SOURCE_HOURS` | 4 | longer sources get a default window |
+| `CF_MAX_SOURCE_HOURS` | 12 | longer sources get a default window |
 | `CF_DEFAULT_WINDOW_HOURS` | 2 | size of that window (from the end) |
-| `CF_MAX_UPLOAD_MB` | 20000 | upload limit |
+| `CF_MAX_UPLOAD_MB` | 60000 | upload limit (a 10 h 1080p recording) |
 
 `clipforge update-downloader` updates yt-dlp (sites change often).
 

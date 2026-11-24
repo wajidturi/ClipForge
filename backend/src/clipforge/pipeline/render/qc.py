@@ -107,7 +107,7 @@ def check(video: Path, *, caption_coverage: float, expected_s: float) -> QcResul
         fail("no audio track")
     if dur < 8:
         fail(f"too short ({dur:.1f}s)")
-    elif dur > 120:
+    elif dur > 180:  # YouTube Shorts allow up to 3 minutes
         fail(f"too long ({dur:.0f}s)")
     if abs(dur - expected_s) > 1.5:
         warn(f"length {dur:.1f}s differs from the plan ({expected_s:.1f}s)")

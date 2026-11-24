@@ -107,6 +107,7 @@ def create_run(body: RunCreate, db: DB) -> RunOut:
             topic=body.topic,
             ai_model=body.ai_model,
             render=body.render.model_dump() if body.render else None,
+            length=body.length,
         )
     except runs_svc.RunInputError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
