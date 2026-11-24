@@ -1,8 +1,12 @@
-# ClipForge (working name)
+# ClipForge
 
-A local-first, AI-assisted application that turns long videos and live streams into finished vertical Shorts: it finds the best moments, reframes to 9:16 with face tracking, adds animated captions and hooks, checks quality, and lets you review, edit, schedule and publish.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Status:** Phase 6 MVP + gaming templates: five templates (Streamer First, Gameplay First, Dual Vision, Floating Facecam, Cinematic Gaming), one-click Create → generate, and a post-render customisation studio with live preview (logo, text, emojis, stickers, captions, effects, undo/redo) that re-renders in seconds. See [docs/pipeline/templates.md](docs/pipeline/templates.md). Next: Playwright E2E, then Phase 7 (creators, discovery, live).
+A free, open-source, local-first app that turns long videos (YouTube links or your own recordings, up to 12 hours) into finished vertical Shorts. It finds the best moments, reframes them to 9:16 with face and facecam tracking, adds animated captions and hooks, checks quality, and lets you review and customise every Short. Everything runs on your own PC: transcription, picture analysis and the AI picker (via [Ollama](https://ollama.com)) need no paid service.
+
+**Status:** Phase 6 MVP + gaming templates + long videos. Five templates (Streamer First, Gameplay First, Dual Vision, Floating Facecam, Cinematic Gaming), one-click Create → generate (up to 50 Shorts per run, 15 s to 3 min each), sharp 1080×1920 output, and a customisation studio with live preview (logo, text, emojis, stickers, captions, effects, undo/redo). See [docs/pipeline/templates.md](docs/pipeline/templates.md). Next: Playwright E2E, then Phase 7 (creators, discovery, live). Work in progress: expect changes between phases.
+
+**Needs:** Windows 10/11 (Linux/macOS work for development), Python 3.12 via [uv](https://docs.astral.sh/uv/), Node.js 20+, FFmpeg; optional: an NVIDIA GPU (faster transcription and encoding) and Ollama for AI picks.
 
 ## Quick start (Windows)
 
@@ -51,3 +55,18 @@ scripts/            setup.ps1, dev.ps1, dev.sh
 | 08 | [Testing, optimization, deployment & documentation](docs/08-quality-performance-deployment.md) |
 | 09 | [Phase-by-phase roadmap](docs/09-roadmap.md) |
 | ADR | [0001 stack](docs/adr/0001-architecture-and-stack.md) · [0002 job queue](docs/adr/0002-db-backed-job-queue.md) · [0003 real-time events](docs/adr/0003-realtime-events.md) · [0004 tooling](docs/adr/0004-tooling.md) · [0005 AI providers](docs/adr/0005-ai-providers.md) |
+
+## Contributing
+
+Issues and pull requests are welcome. Before opening a PR, run the checks CI runs:
+
+```powershell
+cd backend; uv run ruff format --check .; uv run ruff check .; uv run mypy; uv run pytest
+cd ../frontend; npm run lint; npm run typecheck; npm test
+```
+
+Please only clip videos you have the right to use, and follow each platform's terms.
+
+## License
+
+[MIT](LICENSE) © 2026 Wajid Hussain. Research credit: the open-source, MIT-licensed "gta6-clipper" was studied for behaviour (see [docs/01](docs/01-research-findings.md)); no code or assets were copied.

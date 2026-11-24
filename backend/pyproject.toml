@@ -2,6 +2,7 @@
 name = "clipforge"
 version = "0.1.0"
 description = "Turns long videos and live streams into finished vertical Shorts."
+license = "MIT"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
