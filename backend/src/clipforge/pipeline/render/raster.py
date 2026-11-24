@@ -33,12 +33,45 @@ def rgba(hex_color: str, alpha: float = 1.0) -> RGBA:
     return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), int(a * alpha))
 
 
+# Colour bitmap emoji fonts (Noto Color Emoji on Linux) only open at their own size;
+# glyphs are drawn at that size and scaled. Segoe UI Emoji (Windows) scales freely.
+BITMAP_EMOJI_PX = 109
+
+
 @lru_cache(maxsize=64)
 def _font(font_id: str, px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     p = font_path(font_id)
     if p is None:
         return ImageFont.load_default(px)
-    return ImageFont.truetype(str(p), px)
+    try:
+        return ImageFont.truetype(str(p), px)
+    except OSError:  # "invalid pixel size": a fixed-size bitmap font
+        return ImageFont.truetype(str(p), BITMAP_EMOJI_PX)
+
+
+def _ratio(f: ImageFont.FreeTypeFont | ImageFont.ImageFont, px: int) -> float:
+    """How much a glyph drawn with `f` must be scaled to be `px` big (1 = as is)."""
+    size = getattr(f, "size", px)
+    return px / size if size and size != px else 1.0
+
+
+def _length(f: ImageFont.FreeTypeFont | ImageFont.ImageFont, chunk: str, px: int) -> float:
+    return f.getlength(chunk) * _ratio(f, px)
+
+
+def _draw_scaled_emoji(
+    target: Image.Image, xy: tuple[float, float], chunk: str, f: ImageFont.FreeTypeFont, px: int
+) -> None:
+    """Draw emoji at the font's own size, scale to `px`, paste on the baseline at `xy`."""
+    ascent, descent = f.getmetrics()
+    w = max(1, math.ceil(f.getlength(chunk)))
+    tmp = Image.new("RGBA", (w, ascent + descent), (0, 0, 0, 0))
+    ImageDraw.Draw(tmp).text((0, ascent), chunk, font=f, anchor="ls", embedded_color=True)
+    r = _ratio(f, px)
+    size = (max(1, round(w * r)), max(1, round((ascent + descent) * r)))
+    tmp = tmp.resize(size, Image.Resampling.LANCZOS)
+    x, y = round(xy[0]), round(xy[1] - ascent * r)
+    target.alpha_composite(tmp, (max(0, x), max(0, y)))
 
 
 def is_emoji(ch: str) -> bool:
@@ -73,7 +106,7 @@ class Line:
 def _measure(text: str, font_id: str, px: int) -> float:
     total = 0.0
     for chunk, emo in runs(text):
-        total += _font("emoji" if emo else font_id, px).getlength(chunk)
+        total += _length(_font("emoji" if emo else font_id, px), chunk, px)
     return total
 
 
@@ -185,7 +218,9 @@ def render_text_layer(layer: Layer, text: str) -> Image.Image:
         base = y0 + oy + i * lh + px * 0.86  # baseline
         for chunk, emo in runs(ln.text):
             f = _font("emoji" if emo else font_id, px)
-            if emo:
+            if emo and _ratio(f, px) != 1.0 and isinstance(f, ImageFont.FreeTypeFont):
+                _draw_scaled_emoji(text_img, (cx, base), chunk, f, px)
+            elif emo:
                 td.text((cx, base), chunk, font=f, anchor="ls", embedded_color=True)
             else:
                 td.text(
@@ -207,7 +242,7 @@ def render_text_layer(layer: Layer, text: str) -> Image.Image:
                         stroke_width=layer.stroke,
                         stroke_fill=(0, 0, 0, 150),
                     )
-            cx += f.getlength(chunk)
+            cx += _length(f, chunk, px)
     if shadow is not None:
         img = Image.alpha_composite(img, shadow.filter(ImageFilter.GaussianBlur(px * 0.05)))
     img = Image.alpha_composite(img, text_img)

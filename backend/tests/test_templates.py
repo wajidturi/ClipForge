@@ -116,6 +116,37 @@ def test_text_layer_with_emoji_shape_rotation() -> None:
     assert raster.runs("ab 💀c") == [("ab ", False), ("💀", True), ("c", False)]
 
 
+def test_fixed_size_bitmap_emoji_font_is_drawn_and_scaled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Noto Color Emoji (Linux) only opens at 109 px: emoji are drawn at that size and
+    scaled, instead of failing with "invalid pixel size"."""
+    emoji = raster.font_path("emoji")
+    if emoji is None:
+        pytest.skip("no emoji font on this machine")
+    real = raster.ImageFont.truetype
+
+    def bitmap_only(font: str, size: int, *a: object, **kw: object) -> object:
+        if str(font) == str(emoji) and size != raster.BITMAP_EMOJI_PX:
+            raise OSError("invalid pixel size")
+        return real(font, size, *a, **kw)  # type: ignore[arg-type]
+
+    raster._font.cache_clear()
+    small = sc.Layer(kind="emoji", text="💀", size=40, stroke=0, shadow=False)
+    big = sc.Layer(kind="emoji", text="💀", size=160, stroke=0, shadow=False)
+    expected = raster.render_text_layer(small, "💀")  # scalable font: drawn directly
+    monkeypatch.setattr(raster.ImageFont, "truetype", bitmap_only)
+    raster._font.cache_clear()
+    try:
+        a = raster.render_text_layer(small, "💀")
+        b = raster.render_text_layer(big, "💀")
+    finally:
+        raster._font.cache_clear()
+    assert abs(a.width - expected.width) <= 3 and abs(a.height - expected.height) <= 3
+    assert b.width > 3 * a.width * 0.8  # scaled with the size
+    assert a.getchannel("A").getextrema()[1] > 200  # the emoji is visible
+
+
 def test_frame_has_holes_for_panels_and_a_cam_ring() -> None:
     s = sc.default_scene("streamer_first", CTX)
     f = raster.frame_image(s)
