@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, FlaskConical } from 'lucide-react'
+import { AlertTriangle, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { JobRow } from '@/components/JobRow'
-import { Badge, Button, Card, CardHeader } from '@/components/ui'
+import { Badge, Card, CardHeader } from '@/components/ui'
 import { api, unwrap } from '@/lib/api/client'
-import { useJobs, useStartSelftest } from '@/lib/jobs'
+import { splitJobs, useJobs } from '@/lib/jobs'
 import { useStats } from '@/lib/shorts'
-import { useNow } from '@/lib/useNow'
+import { ActiveJobs } from './Jobs'
 
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -106,41 +105,20 @@ function SystemCard() {
 function JobsCard() {
   const { t } = useTranslation()
   const jobs = useJobs()
-  const start = useStartSelftest()
-  const items = jobs.data?.items ?? []
-  const anyQueued = items.some((j) => j.status === 'queued')
-  const now = useNow(2000, anyQueued)
-  // A job still queued after 5 s usually means no worker process is running.
-  const stuck = items.some((j) => j.status === 'queued' && now - Date.parse(j.created_at) > 5_000)
-
+  const { active, finished } = splitJobs(jobs.data?.items ?? [])
   return (
-    <Card>
-      <CardHeader
-        title={t('dashboard.jobs')}
-        action={
-          <Button size="sm" onClick={() => start.mutate()} disabled={start.isPending}>
-            <FlaskConical size={14} aria-hidden /> {t('dashboard.selftest')}
-          </Button>
-        }
-      />
-      {stuck && (
-        <p className="border-b border-border px-5 py-2.5 text-xs text-warn">
-          {t('dashboard.noWorkers')}
-        </p>
-      )}
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 px-5 py-10 text-center text-sm text-muted">
-          <CheckCircle2 size={22} aria-hidden />
-          {jobs.isLoading ? '…' : t('dashboard.jobsEmpty')}
-        </div>
-      ) : (
-        <ul className="divide-y divide-border">
-          {items.map((job) => (
-            <JobRow key={job.id} job={job} />
-          ))}
-        </ul>
-      )}
-    </Card>
+    <ActiveJobs
+      jobs={active}
+      footer={
+        <Link
+          to="/jobs"
+          className="flex items-center justify-between border-t border-border px-5 py-2.5 text-xs text-muted hover:text-fg"
+        >
+          {t('jobs.viewAll', { count: finished.length })}
+          <ArrowRight size={14} aria-hidden />
+        </Link>
+      }
+    />
   )
 }
 
@@ -210,7 +188,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-5xl px-8 py-8">
       <PageHeader title={t('dashboard.title')} subtitle={t('dashboard.subtitle')} />
-      <div className="grid gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Overview />
         <SystemCard />
         <JobsCard />

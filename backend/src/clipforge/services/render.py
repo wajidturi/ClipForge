@@ -166,6 +166,16 @@ def apply_caption_overrides(words: list[Word], overrides: dict[str, str]) -> lis
     return out
 
 
+def restore_after_stop(short_id: uuid.UUID) -> None:
+    """After a stop: a Short left 'rendering' goes back to review (it has a video) or
+    picked (it has none)."""
+    with get_sessionmaker()() as s:
+        short = s.get(Short, short_id)
+        if short is not None and short.status == ShortStatus.rendering:
+            short.status = ShortStatus.review if short.active_version_id else ShortStatus.picked
+            s.commit()
+
+
 def _set_status(short_id: uuid.UUID, status: ShortStatus, **extra: Any) -> None:
     with get_sessionmaker()() as s:
         short = s.get(Short, short_id)

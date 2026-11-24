@@ -1,6 +1,7 @@
 import { Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, NavLink, Outlet } from 'react-router'
+import { Toaster } from '@/components/feedback'
 import { useConnection, useServerEvents } from '@/lib/events'
 import { settingValue, useSettings } from '@/lib/settings'
 import { useStats } from '@/lib/shorts'
@@ -78,6 +79,7 @@ export function AppShell() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
+      <Toaster />
     </div>
   )
 }

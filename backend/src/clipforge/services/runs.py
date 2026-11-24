@@ -392,5 +392,16 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     return {"picked": len(accepted), "candidates": len(pool), "warnings": warnings}
 
 
+def stop_run(run_id: uuid.UUID) -> None:
+    """After a stop: a run still picking ends as cancelled."""
+    with get_sessionmaker()() as s:
+        run = s.get(Run, run_id)
+        if run is not None and run.status in (RunStatus.queued, RunStatus.running):
+            run.status = RunStatus.failed
+            run.finished_at = utcnow()
+            run.error = "Cancelled"
+            s.commit()
+
+
 def fail_run(run_id: uuid.UUID, error: str) -> None:
     _set_run(run_id, status=RunStatus.failed, finished_at=utcnow(), error=error[:1000])

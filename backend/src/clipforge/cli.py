@@ -62,23 +62,37 @@ def _dev(args: argparse.Namespace) -> None:
     migrate.upgrade(s.resolved_database_url)  # once, before children race for it
     exe = [sys.executable, "-m", "clipforge.cli"]
     n = s.workers if args.workers is None else args.workers
-    procs = [subprocess.Popen([*exe, "api", "--port", str(args.port or s.port)])]
+    api = subprocess.Popen([*exe, "api", "--port", str(args.port or s.port)])
     # The first `ml_workers` workers may also run ML jobs (transcription, vision);
     # keeping that number small bounds GPU memory and CPU load.
     ml = min(s.ml_workers, n)
-    for i in range(n):
+
+    def spawn(i: int) -> subprocess.Popen[bytes]:
         caps = args.caps + (",ml" if i < ml else "")
-        procs.append(subprocess.Popen([*exe, "worker", "--id", f"dev-{i + 1}", "--caps", caps]))
+        return subprocess.Popen([*exe, "worker", "--id", f"dev-{i + 1}", "--caps", caps])
+
+    workers = [spawn(i) for i in range(n)]
     print(
         f"ClipForge running: http://{s.host}:{args.port or s.port}  ({n} workers, {ml} for ML)",
         flush=True,
     )
     try:
-        while all(p.poll() is None for p in procs):
+        # A worker exits when a stopped job had to be ended by force (or if it
+        # crashed): start a fresh one. The app stops when the API stops.
+        while api.poll() is None:
+            for i, w in enumerate(workers):
+                if w.poll() is not None:
+                    print(
+                        f"worker dev-{i + 1} exited ({w.returncode}); starting a new one",
+                        flush=True,
+                    )
+                    time.sleep(1.0)  # no tight loop if it cannot start at all
+                    workers[i] = spawn(i)
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
     finally:
+        procs = [api, *workers]
         for p in procs:
             if p.poll() is None:
                 p.terminate()

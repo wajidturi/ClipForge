@@ -24,6 +24,8 @@ from clipforge.api.schemas import (
     ReviewRequest,
     ShortOut,
     ShortPage,
+    ShortsDelete,
+    ShortsDeleted,
     ShortWords,
     StatsOut,
 )
@@ -99,6 +101,13 @@ def review_many(body: BulkReviewRequest, db: DB) -> BulkReviewOut:
             skipped.append(BulkSkip(id=sid, reason=str(e)))
     db.commit()
     return BulkReviewOut(updated=updated, skipped=skipped)
+
+
+@router.post("/shorts/delete", response_model=ShortsDeleted)
+def delete_many(body: ShortsDelete, db: DB) -> ShortsDeleted:
+    """Delete Shorts permanently: their videos, covers, cached files and records.
+    Running renders of them are stopped. This cannot be undone."""
+    return ShortsDeleted(deleted=shorts_svc.purge(db, list(dict.fromkeys(body.short_ids))))
 
 
 # ------------------------------------------------------------------ export

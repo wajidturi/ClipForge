@@ -216,6 +216,46 @@
         }
       }
     },
+    "/api/v1/jobs/cancel-all": {
+      "post": {
+        "tags": ["jobs"],
+        "summary": "Cancel All",
+        "description": "Stop every queued and running job. Running ones end within a few seconds,\nincluding the programs they started (see the worker).",
+        "operationId": "cancel_all_api_v1_jobs_cancel_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/history": {
+      "delete": {
+        "tags": ["jobs"],
+        "summary": "Clear History",
+        "description": "Delete finished jobs (succeeded, failed, cancelled). Active jobs are kept.",
+        "operationId": "clear_history_api_v1_jobs_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs/{job_id}": {
       "get": {
         "tags": ["jobs"],
@@ -1525,6 +1565,46 @@
         }
       }
     },
+    "/api/v1/shorts/delete": {
+      "post": {
+        "tags": ["shorts"],
+        "summary": "Delete Many",
+        "description": "Delete Shorts permanently: their videos, covers, cached files and records.\nRunning renders of them are stopped. This cannot be undone.",
+        "operationId": "delete_many_api_v1_shorts_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShortsDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShortsDeleted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/shorts/{short_id}/export.zip": {
       "get": {
         "tags": ["shorts"],
@@ -2781,6 +2861,18 @@
         "type": "object",
         "required": ["start", "end", "text", "heat", "inside"],
         "title": "ContextSentence"
+      },
+      "CountOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": ["count"],
+        "title": "CountOut",
+        "description": "How many items an action changed."
       },
       "CutOut": {
         "properties": {
@@ -5341,6 +5433,38 @@
         "type": "object",
         "required": ["start_s", "end_s", "words", "overrides", "sentences"],
         "title": "ShortWords"
+      },
+      "ShortsDelete": {
+        "properties": {
+          "short_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Short Ids"
+          }
+        },
+        "type": "object",
+        "required": ["short_ids"],
+        "title": "ShortsDelete"
+      },
+      "ShortsDeleted": {
+        "properties": {
+          "deleted": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": ["deleted"],
+        "title": "ShortsDeleted"
       },
       "SourceCreate": {
         "properties": {

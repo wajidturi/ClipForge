@@ -59,6 +59,17 @@ class _Progress:
         return report
 
 
+def mark_stopped(source_id: uuid.UUID, error: str) -> None:
+    """After a stop: a source still downloading/analysing shows it was cancelled."""
+    with get_sessionmaker()() as s:
+        src = s.get(Source, source_id)
+        if src is not None and src.status not in (SourceStatus.ready, SourceStatus.failed):
+            src.status = SourceStatus.failed
+            src.error = error
+            src.error_hint = None
+            s.commit()
+
+
 def _update(source_id: uuid.UUID, **values: Any) -> None:
     with get_sessionmaker()() as s:
         src = s.get(Source, source_id)

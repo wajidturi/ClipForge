@@ -63,6 +63,9 @@ Each phase ends with a **demo + review gate**: you see it working before the nex
 ### Phase 6c — Long videos ✅ (2026-11-24)
 **Result:** videos up to 12 h used whole (was 4 h → last 2 h), up to 50 Shorts per run with a fair share per source (was 2 per source, 20 per run), length presets (15–60 s, 30–90 s, whole scenes up to 3 min; QC allows 180 s), fast downloads (whole files instead of ffmpeg sections for whole videos and parts over 30 min, live progress, throttle recovery), uploads up to 60 GB, sharp 1080p crops (link moments fetched up to 4K, 1080p editor preview).
 
+### Phase 6d — Job controls ✅ (2026-11-24)
+**Result:** Stop that really ends a job (its programs at once; a stuck job's worker is restarted after 5 s), Stop all, Jobs page (running now + history with Clear history), permanent delete of Shorts (one or selected; files, covers, cached cuts, previews and records) with confirmation, toasts for every result, and a repair sweep so nothing stays stuck "rendering". Verified live: FFmpeg ended within 1.2 s, transcription stopped in 4.3 s, forced stop restarted the worker, a deleted Short's folder and rows were gone.
+
 ### Phase 7 — Creators, discovery & live
 **Tasks:** creators CRUD + clip policies; discovery rules (RSS/search/category); past-streams lists; live recorder ring buffer; live chat readers; spike → candidate → render; live hunt; live page.
 **Exit:** 1-hour soak test on a real live stream without leaks.

@@ -1,4 +1,4 @@
-import { Film } from 'lucide-react'
+import { Film, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -52,10 +52,12 @@ export function ShortTile({
   short,
   selected,
   onToggle,
+  onDelete,
 }: {
   short: ShortPick
   selected?: boolean
   onToggle?: () => void
+  onDelete?: () => void
 }) {
   const { t } = useTranslation()
   const part = short.parts?.[0]
@@ -99,6 +101,16 @@ export function ShortTile({
             className="size-4 accent-accent"
           />
         </label>
+      )}
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          aria-label={t('shorts.delete.one')}
+          title={t('shorts.delete.one')}
+          className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-md bg-black/55 text-white/85 opacity-0 backdrop-blur-sm transition group-hover:opacity-100 hover:bg-danger hover:text-white focus-visible:opacity-100"
+        >
+          <Trash2 size={14} aria-hidden />
+        </button>
       )}
     </div>
   )

@@ -13,6 +13,7 @@
     "schedule": "Schedule",
     "brand": "Brand",
     "insights": "Insights",
+    "jobs": "Jobs",
     "settings": "Settings"
   },
   "conn": {
@@ -25,7 +26,7 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Your Shorts at a glance, system status and background jobs.",
+    "subtitle": "Your Shorts at a glance, system status and running jobs.",
     "system": "System",
     "jobs": "Background jobs",
     "jobsEmpty": "No jobs yet. Run a self-test to check that workers are processing jobs.",
@@ -38,7 +39,8 @@
       "review": "Waiting for review",
       "approved": "Approved",
       "qcFail": "Failed QC"
-    }
+    },
+    "selftestHelp": "Runs a small test job to check that workers are processing jobs."
   },
   "system": {
     "gpu": "GPU",
@@ -60,10 +62,10 @@
       "failed": "Failed",
       "cancelled": "Cancelled"
     },
-    "cancel": "Cancel",
+    "cancel": "Stop",
     "retry": "Retry",
     "attempt": "Attempt {{n}} of {{max}}",
-    "cancelling": "Cancelling…"
+    "cancelling": "Stopping…"
   },
   "sources": {
     "title": "Sources",
@@ -192,7 +194,10 @@
         "name": "15–60 s",
         "help": "Classic Shorts: the tightest window around each moment."
       },
-      "medium": { "name": "30–90 s", "help": "A bit more build-up before each moment." },
+      "medium": {
+        "name": "30–90 s",
+        "help": "A bit more build-up before each moment."
+      },
       "long": {
         "name": "Whole scenes",
         "help": "45 s to 3 min: keeps the whole scene when it runs long."
@@ -299,7 +304,19 @@
     "count": "{{n}} Shorts",
     "more": "Load more",
     "untitled": "Untitled Short",
-    "select": "Select"
+    "select": "Select",
+    "delete": {
+      "one": "Delete permanently",
+      "confirm": "Delete permanently",
+      "title_one": "Delete this Short permanently?",
+      "title_other": "Delete {{count}} Shorts permanently?",
+      "titleOne": "Delete “{{name}}” permanently?",
+      "body_one": "Its video, cover, edits and every version are deleted from your PC. This cannot be undone.",
+      "body_other": "Their videos, covers, edits and every version are deleted from your PC. This cannot be undone.",
+      "done_one": "Deleted {{count}} Short",
+      "done_other": "Deleted {{count}} Shorts",
+      "failed": "Couldn't delete. Try again."
+    }
   },
   "review": {
     "title": "Review",
@@ -818,5 +835,34 @@
     "selected": "Selected element",
     "done": "Done",
     "noCam": "No facecam was found in this clip, so {{name}} is not available. Cinematic Gaming is used instead."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "dismiss": "Dismiss"
+  },
+  "jobs": {
+    "title": "Jobs",
+    "subtitle": "What is running in the background, and what already ran.",
+    "active": "Running now",
+    "nothingRunning": "Nothing is running.",
+    "stopAll": "Stop all",
+    "stopAllTitle_one": "Stop {{count}} job?",
+    "stopAllTitle_other": "Stop all {{count}} jobs?",
+    "stopAllBody": "Running jobs end within a few seconds, together with every program they started (downloads, FFmpeg). Queued jobs won't start. You can retry any of them later.",
+    "stoppedAll_one": "Stopped {{count}} job",
+    "stoppedAll_other": "Stopped {{count}} jobs",
+    "stopping": "Stopping “{{name}}”…",
+    "stopOne": "Stop {{name}}",
+    "stopFailed": "Couldn't stop the job. Check that ClipForge is still running.",
+    "history": "History",
+    "historyEmpty": "No finished jobs.",
+    "clearHistory": "Clear history",
+    "clearTitle": "Clear the job history?",
+    "clearBody": "Finished, failed and cancelled jobs are removed from this list. Running jobs, your Shorts and your sources are not affected.",
+    "cleared_one": "Removed {{count}} job from the history",
+    "cleared_other": "Removed {{count}} jobs from the history",
+    "clearFailed": "Couldn't clear the history. Try again.",
+    "viewAll_one": "All jobs · {{count}} in history",
+    "viewAll_other": "All jobs · {{count}} in history"
   }
 }

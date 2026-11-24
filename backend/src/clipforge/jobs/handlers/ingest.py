@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from clipforge.jobs.registry import JobContext, PermanentJobError, job_handler
@@ -16,13 +17,28 @@ def _uuid(payload: dict[str, Any], key: str) -> uuid.UUID:
         raise PermanentJobError(f"payload needs a valid '{key}'") from None
 
 
-@job_handler("source.ingest", caps=("cpu", "net"), description="Download / read a source")
+def _source_stopped(error: str) -> Callable[[dict[str, Any]], None]:
+    def on_cancel(payload: dict[str, Any]) -> None:
+        ingest_service.mark_stopped(_uuid(payload, "source_id"), error)
+
+    return on_cancel
+
+
+@job_handler(
+    "source.ingest",
+    caps=("cpu", "net"),
+    description="Download / read a source",
+    on_cancel=_source_stopped("Cancelled"),
+)
 def ingest(ctx: JobContext, payload: dict[str, Any]) -> dict[str, Any]:
     return ingest_service.ingest(ctx, _uuid(payload, "source_id"))
 
 
 @job_handler(
-    "source.analyze", caps=("cpu", "net", "ml"), description="Transcript, signals and HEAT"
+    "source.analyze",
+    caps=("cpu", "net", "ml"),
+    description="Transcript, signals and HEAT",
+    on_cancel=_source_stopped("Analysis cancelled"),
 )
 def analyze(ctx: JobContext, payload: dict[str, Any]) -> dict[str, Any]:
     return analyze_service.analyze(ctx, _uuid(payload, "source_id"), payload.get("options") or {})

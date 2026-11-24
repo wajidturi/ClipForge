@@ -12,14 +12,22 @@ import threading
 import time
 import traceback
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 from clipforge.core.config import Settings, get_settings
 from clipforge.core.logging import get_logger
 from clipforge.db.session import get_sessionmaker
-from clipforge.jobs import queue
-from clipforge.jobs.registry import JobCancelledError, JobContext, PermanentJobError, get_spec
+from clipforge.jobs import procs, queue
+from clipforge.jobs.registry import (
+    JobCancelledError,
+    JobContext,
+    JobSpec,
+    PermanentJobError,
+    get_spec,
+)
+from clipforge.services.repair import repair_orphans
 
 log = get_logger(__name__)
 
@@ -30,6 +38,7 @@ class Worker:
         worker_id: str | None = None,
         caps: Sequence[str] = ("cpu", "net"),
         settings: Settings | None = None,
+        hard_exit: Callable[[int], None] | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
@@ -37,6 +46,8 @@ class Worker:
         self.stop = threading.Event()
         self.sessions = get_sessionmaker()
         self._last_requeue = 0.0
+        # How a stuck, stopped job is ended: the whole process exits (tests swap it).
+        self.hard_exit = hard_exit or os._exit
 
     # ------------------------------------------------------------------ loop
     def run_forever(self) -> None:
@@ -53,6 +64,7 @@ class Worker:
                 self._last_requeue = time.monotonic()
                 if n := queue.requeue_expired(s):
                     log.warning("worker.requeued_expired", count=n)
+                repair_orphans(s)
             job = queue.lease(s, self.id, self.caps, self.settings.job_lease_seconds)
             if job is None:
                 return False
@@ -85,50 +97,107 @@ class Worker:
         ctx = JobContext(
             job_id, attempt, self.settings.resolved_data_dir, progress, max_attempts=max_attempts
         )
+        run = _Running(job_id, spec, payload, ctx, since=time.time())
         beat_stop = threading.Event()
         beat = threading.Thread(
-            target=self._heartbeat, args=(job_id, ctx, beat_stop), daemon=True, name="heartbeat"
+            target=self._heartbeat, args=(run, beat_stop), daemon=True, name="heartbeat"
         )
         beat.start()
         jlog.info("job.start")
         started = time.monotonic()
+        result: dict[str, Any] | None = None
+        error: BaseException | None = None
         try:
             result = spec.handler(ctx, payload)
-        except JobCancelledError:
-            with self.sessions() as s:
-                queue.mark_cancelled(s, job_id)
-            jlog.info("job.cancelled")
-        except PermanentJobError as e:
-            with self.sessions() as s:
-                queue.fail(s, job_id, str(e), retryable=False)
-            jlog.warning("job.failed_permanent", error=str(e))
         except Exception as e:
+            error = e
+        finally:
+            with run.lock:
+                run.done = True
+            beat_stop.set()
+            beat.join(timeout=5)
+        if run.killed:  # only in tests: a real worker process has already exited
+            return
+        if ctx.cancelled or isinstance(error, JobCancelledError):
+            # Whatever the handler raised, a stopped job ends as cancelled, not failed.
+            self._cancelled(run)
+            jlog.info("job.cancelled")
+        elif isinstance(error, PermanentJobError):
             with self.sessions() as s:
-                job = queue.fail(s, job_id, f"{e}\n{traceback.format_exc()}")
-            jlog.warning("job.failed", error=str(e), will_retry=job.status == "queued")
+                queue.fail(s, job_id, str(error), retryable=False)
+            jlog.warning("job.failed_permanent", error=str(error))
+        elif error is not None:
+            tb = "".join(traceback.format_exception(error))
+            with self.sessions() as s:
+                job = queue.fail(s, job_id, f"{error}\n{tb}")
+            jlog.warning("job.failed", error=str(error), will_retry=job.status == "queued")
         else:
             with self.sessions() as s:
                 queue.complete(s, job_id, result)
             jlog.info("job.done", seconds=round(time.monotonic() - started, 2))
-        finally:
-            beat_stop.set()
-            beat.join(timeout=5)
 
-    def _heartbeat(self, job_id: uuid.UUID, ctx: JobContext, stop: threading.Event) -> None:
-        """Every second: notice cancel requests. Every lease/3 seconds: extend the lease."""
+    def _cancelled(self, run: _Running, step: str = "cancelled") -> None:
+        if run.spec.on_cancel is not None:
+            try:
+                run.spec.on_cancel(run.payload)
+            except Exception as e:
+                log.warning("job.on_cancel_error", job_id=str(run.job_id), error=str(e))
+        with self.sessions() as s:
+            queue.mark_cancelled(s, run.job_id, step)
+
+    def _heartbeat(self, run: _Running, stop: threading.Event) -> None:
+        """Every second: notice a stop request. Every lease/3 seconds: extend the lease.
+
+        On a stop: end the programs the job started at once (FFmpeg, downloads), then
+        give the handler `cancel_grace_s` to return. If it is stuck in code that cannot
+        be interrupted (transcription, picture analysis...), end this whole worker
+        process: the job is recorded as cancelled and the supervisor starts a new worker.
+        """
         extend_every = max(1.0, self.settings.job_lease_seconds / 3)
         last_extend = time.monotonic()
+        cancel_at: float | None = None
         while not stop.wait(1.0):
             try:
-                with self.sessions() as s:
-                    if time.monotonic() - last_extend >= extend_every:
-                        last_extend = time.monotonic()
-                        cancel = queue.heartbeat(
-                            s, job_id, self.id, self.settings.job_lease_seconds
-                        )
-                    else:
-                        cancel = queue.is_cancel_requested(s, job_id)
-                if cancel:
-                    ctx.request_cancel()
+                if cancel_at is None:
+                    with self.sessions() as s:
+                        if time.monotonic() - last_extend >= extend_every:
+                            last_extend = time.monotonic()
+                            cancel = queue.heartbeat(
+                                s, run.job_id, self.id, self.settings.job_lease_seconds
+                            )
+                        else:
+                            cancel = queue.is_cancel_requested(s, run.job_id)
+                    if cancel:
+                        cancel_at = time.monotonic()
+                        run.ctx.request_cancel()
+                        procs.kill_job_children(run.since)
+                elif time.monotonic() - cancel_at >= self.settings.cancel_grace_s:
+                    with run.lock:
+                        if run.done:
+                            return
+                        run.killed = True
+                        self._kill(run)
+                    return
             except Exception as e:
                 log.warning("worker.heartbeat_error", error=str(e))
+
+    def _kill(self, run: _Running) -> None:
+        log.warning("job.killed", job_id=str(run.job_id), worker=self.id)
+        procs.kill_job_children(run.since)
+        self._cancelled(run, "stopped (worker restarted)")
+        self.hard_exit(EXIT_JOB_KILLED)
+
+
+EXIT_JOB_KILLED = 75  # the supervisor restarts a worker that exits with any code
+
+
+@dataclass
+class _Running:
+    job_id: uuid.UUID
+    spec: JobSpec
+    payload: dict[str, Any]
+    ctx: JobContext
+    since: float  # time.time() when the job started: its child processes are newer
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    done: bool = False
+    killed: bool = False

@@ -90,6 +90,47 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/jobs/cancel-all': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Cancel All
+     * @description Stop every queued and running job. Running ones end within a few seconds,
+     *     including the programs they started (see the worker).
+     */
+    post: operations['cancel_all_api_v1_jobs_cancel_all_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/jobs/history': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Clear History
+     * @description Delete finished jobs (succeeded, failed, cancelled). Active jobs are kept.
+     */
+    delete: operations['clear_history_api_v1_jobs_history_delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/jobs/{job_id}': {
     parameters: {
       query?: never
@@ -514,6 +555,27 @@ export interface paths {
      * @description Approve/reject/re-open several Shorts; ones in the wrong state are skipped.
      */
     post: operations['review_many_api_v1_shorts_review_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/shorts/delete': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Delete Many
+     * @description Delete Shorts permanently: their videos, covers, cached files and records.
+     *     Running renders of them are stopped. This cannot be undone.
+     */
+    post: operations['delete_many_api_v1_shorts_delete_post']
     delete?: never
     options?: never
     head?: never
@@ -1089,6 +1151,14 @@ export interface components {
       heat: number
       /** Inside */
       inside: boolean
+    }
+    /**
+     * CountOut
+     * @description How many items an action changed.
+     */
+    CountOut: {
+      /** Count */
+      count: number
     }
     /**
      * CutOut
@@ -2171,6 +2241,16 @@ export interface components {
       /** Sentences */
       sentences: components['schemas']['ContextSentence'][]
     }
+    /** ShortsDelete */
+    ShortsDelete: {
+      /** Short Ids */
+      short_ids: string[]
+    }
+    /** ShortsDeleted */
+    ShortsDeleted: {
+      /** Deleted */
+      deleted: string[]
+    }
     /** SourceCreate */
     SourceCreate: {
       /**
@@ -2696,6 +2776,46 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_all_api_v1_jobs_cancel_all_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CountOut']
+        }
+      }
+    }
+  }
+  clear_history_api_v1_jobs_history_delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CountOut']
         }
       }
     }
@@ -3576,6 +3696,39 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['BulkReviewOut']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  delete_many_api_v1_shorts_delete_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ShortsDelete']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ShortsDeleted']
         }
       }
       /** @description Validation Error */

@@ -5,6 +5,7 @@ import { NAV } from './app/nav'
 import { makeQueryClient } from './lib/queryClient'
 import { Create } from './pages/Create'
 import { Dashboard } from './pages/Dashboard'
+import { Jobs } from './pages/Jobs'
 import { Library } from './pages/Library'
 import { Review } from './pages/Review'
 import { RunDetail } from './pages/RunDetail'
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="shorts" element={<Library />} />
             <Route path="shorts/:id" element={<Studio />} />
             <Route path="review" element={<Review />} />
+            <Route path="jobs" element={<Jobs />} />
             <Route path="settings" element={<Settings />} />
             {NAV.filter((n) => n.phase).map((n) => (
               <Route

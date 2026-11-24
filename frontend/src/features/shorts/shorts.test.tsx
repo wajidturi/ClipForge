@@ -110,6 +110,60 @@ describe('Library', () => {
   })
 })
 
+describe('Permanent delete', () => {
+  it('deletes one Short from its tile after confirming', async () => {
+    let items = [makeShort(), makeShort({ id: 's2', hook: 'SECOND ONE' })]
+    const api = mockApi([
+      { method: 'GET', path: /\/shorts$/, handler: () => page(items) },
+      {
+        method: 'POST',
+        path: /\/shorts\/delete$/,
+        handler: () => {
+          items = items.filter((x) => x.id !== 's1')
+          return { deleted: ['s1'] }
+        },
+      },
+    ])
+    renderAt('/shorts')
+    const tiles = await screen.findAllByTestId('short-tile')
+    await userEvent.click(within(tiles[0]!).getByRole('button', { name: 'Delete permanently' }))
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Delete “HE DID NOT SEE THAT” permanently?',
+    })
+    expect(dialog).toHaveTextContent('This cannot be undone.')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }))
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.path.endsWith('/shorts/delete'))?.body).toEqual({
+        short_ids: ['s1'],
+      }),
+    )
+    await waitFor(() => expect(screen.getAllByTestId('short-tile')).toHaveLength(1))
+  })
+
+  it('deletes the selected Shorts together', async () => {
+    const api = mockApi([
+      {
+        method: 'GET',
+        path: /\/shorts$/,
+        handler: () => page([makeShort(), makeShort({ id: 's2', hook: 'SECOND ONE' })]),
+      },
+      { method: 'POST', path: /\/shorts\/delete$/, handler: () => ({ deleted: ['s1', 's2'] }) },
+    ])
+    renderAt('/shorts')
+    for (const tile of await screen.findAllByTestId('short-tile'))
+      await userEvent.click(within(tile).getByRole('checkbox'))
+    const bar = screen.getByText('2 selected').parentElement!
+    await userEvent.click(within(bar).getByRole('button', { name: /Delete permanently/ }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete 2 Shorts permanently?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }))
+    await waitFor(() =>
+      expect(api.calls.find((c) => c.path.endsWith('/shorts/delete'))?.body).toEqual({
+        short_ids: ['s1', 's2'],
+      }),
+    )
+  })
+})
+
 describe('Review queue', () => {
   it('approves with the A key and rejects with a reason', async () => {
     const api = mockApi([

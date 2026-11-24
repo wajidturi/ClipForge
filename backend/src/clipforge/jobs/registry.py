@@ -65,6 +65,9 @@ class JobContext:
 
 
 Handler = Callable[[JobContext, dict[str, Any]], dict[str, Any]]
+# Puts the job's subject back in order after a stop (source/run/short status). Runs in
+# the worker, also when the handler could not clean up itself because it was ended.
+OnCancel = Callable[[dict[str, Any]], None]
 
 
 @dataclass(frozen=True)
@@ -74,18 +77,26 @@ class JobSpec:
     caps: tuple[str, ...]
     public: bool  # may be started directly through POST /api/v1/jobs
     description: str
+    on_cancel: OnCancel | None = None
 
 
 _REGISTRY: dict[str, JobSpec] = {}
 
 
 def job_handler(
-    type_: str, *, caps: tuple[str, ...] = ("cpu",), public: bool = False, description: str = ""
+    type_: str,
+    *,
+    caps: tuple[str, ...] = ("cpu",),
+    public: bool = False,
+    description: str = "",
+    on_cancel: OnCancel | None = None,
 ) -> Callable[[Handler], Handler]:
     def deco(fn: Handler) -> Handler:
         if type_ in _REGISTRY:
             raise ValueError(f"duplicate job handler: {type_}")
-        _REGISTRY[type_] = JobSpec(type_, fn, caps, public, description or (fn.__doc__ or ""))
+        _REGISTRY[type_] = JobSpec(
+            type_, fn, caps, public, description or (fn.__doc__ or ""), on_cancel
+        )
         return fn
 
     return deco

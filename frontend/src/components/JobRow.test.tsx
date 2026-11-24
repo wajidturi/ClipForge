@@ -19,12 +19,12 @@ function renderRow(job = makeJob()) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('JobRow', () => {
-  it('shows a running job with progress and a cancel button', () => {
+  it('shows a running job with progress and a stop button', () => {
     renderRow()
     expect(screen.getByText('Self-test')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40')
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /stop/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
   })
 
@@ -42,6 +42,12 @@ describe('JobRow', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
+  it('shows a job that is being stopped without a second stop button', () => {
+    renderRow(makeJob({ cancel_requested: true }))
+    expect(screen.getAllByText('Stopping…').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /stop/i })).not.toBeInTheDocument()
+  })
+
   it('calls the cancel endpoint', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify(makeJob({ cancel_requested: true })), {
@@ -50,7 +56,7 @@ describe('JobRow', () => {
       }),
     )
     renderRow()
-    await userEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    await userEvent.click(screen.getByRole('button', { name: /stop/i }))
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const req = fetchMock.mock.calls[0][0] as Request
     expect(req.method).toBe('POST')

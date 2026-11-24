@@ -29,6 +29,8 @@ from clipforge.core.config import Settings, get_settings
 from clipforge.core.logging import configure_logging, get_logger
 from clipforge.core.paths import ensure_data_dirs
 from clipforge.db import migrate
+from clipforge.db.session import get_sessionmaker
+from clipforge.services.repair import repair_orphans
 
 log = get_logger(__name__)
 API_PREFIX = "/api/v1"
@@ -38,12 +40,20 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
     settings = settings or get_settings()
     hub = EventHub(settings.event_poll_interval)
 
+    def _repair() -> None:
+        try:
+            with get_sessionmaker()() as s:
+                repair_orphans(s)
+        except Exception as e:  # never block start-up
+            log.warning("repair.failed", error=str(e))
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         configure_logging(settings.log_level, settings.log_format)
         ensure_data_dirs(settings.resolved_data_dir)
         if run_migrations:
             await asyncio.to_thread(migrate.upgrade, settings.resolved_database_url)
+        await asyncio.to_thread(_repair)
         hub.start()
         log.info("api.start", data_dir=str(settings.resolved_data_dir), version=__version__)
         yield

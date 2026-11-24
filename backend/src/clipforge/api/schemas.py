@@ -71,6 +71,12 @@ class JobCreate(BaseModel):
     priority: int = Field(default=100, ge=0, le=1000)
 
 
+class CountOut(BaseModel):
+    """How many items an action changed."""
+
+    count: int
+
+
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -540,6 +546,14 @@ class ReviewRequest(BaseModel):
 
 class BulkReviewRequest(ReviewRequest):
     short_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class ShortsDelete(BaseModel):
+    short_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class ShortsDeleted(BaseModel):
+    deleted: list[uuid.UUID]
 
 
 class BulkSkip(BaseModel):

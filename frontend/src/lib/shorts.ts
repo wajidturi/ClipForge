@@ -204,3 +204,18 @@ export const runExportUrl = (runId: string, only: 'approved' | 'rendered' = 'app
 export function applyShortUpdated(qc: QueryClient, ev: { id: string; run_id: string | null }) {
   refreshShort(qc, ev.id, ev.run_id)
 }
+
+/** Delete Shorts permanently (videos, files and records). Cannot be undone. */
+export function useDeleteShorts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) =>
+      unwrap(await api.POST('/api/v1/shorts/delete', { body: { short_ids: ids } })),
+    onSuccess: (r) => {
+      for (const id of r.deleted) qc.removeQueries({ queryKey: shortKeys.detail(id) })
+      void qc.invalidateQueries({ queryKey: shortKeys.all })
+      void qc.invalidateQueries({ queryKey: shortKeys.stats() })
+      void qc.invalidateQueries({ queryKey: runKeys.all })
+    },
+  })
+}

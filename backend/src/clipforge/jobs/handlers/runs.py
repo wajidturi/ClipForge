@@ -7,7 +7,16 @@ from clipforge.jobs.registry import JobCancelledError, JobContext, PermanentJobE
 from clipforge.services import runs
 
 
-@job_handler("run.select", caps=("cpu",), description="Pick the best moments for a run")
+def _run_stopped(payload: dict[str, Any]) -> None:
+    runs.stop_run(uuid.UUID(str(payload["run_id"])))
+
+
+@job_handler(
+    "run.select",
+    caps=("cpu",),
+    description="Pick the best moments for a run",
+    on_cancel=_run_stopped,
+)
 def select(ctx: JobContext, payload: dict[str, Any]) -> dict[str, Any]:
     try:
         run_id = uuid.UUID(str(payload["run_id"]))

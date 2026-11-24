@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Job queue tuning
     job_lease_seconds: int = Field(default=60, ge=5)
     job_poll_interval: float = Field(default=0.5, gt=0)
+    # A stopped job gets this long to end by itself; then its worker process is
+    # ended (with every program it started) and the supervisor starts a fresh one.
+    cancel_grace_s: float = Field(default=5.0, gt=0)
     event_poll_interval: float = Field(default=0.5, gt=0)
 
     # Ingestion (Phase 2)

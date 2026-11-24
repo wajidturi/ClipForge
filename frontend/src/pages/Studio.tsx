@@ -1,8 +1,9 @@
-import { ArrowLeft, Check, Download, Palette, RotateCcw, X } from 'lucide-react'
+import { ArrowLeft, Check, Download, Palette, RotateCcw, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Button, Card, Progress } from '@/components/ui'
+import { DeleteShortsDialog } from '@/features/shorts/DeleteShorts'
 import { QcBadge, StatusBadge } from '@/features/shorts/ShortTile'
 import { Customizer } from '@/features/studio/Customizer'
 import { AIEditTab, CaptionsTab, PostTab, TrimTab } from '@/features/studio/tabs'
@@ -67,6 +68,8 @@ export function Studio() {
   const [viewing, setViewing] = useState<string | null>(null)
   const job = useJob(s?.status === 'rendering' ? s.render_job_id : null)
   const review = useReview()
+  const navigate = useNavigate()
+  const [deleting, setDeleting] = useState(false)
 
   if (short.isError) return <p className="px-8 py-8 text-sm text-danger">{t('studio.notFound')}</p>
   if (!s) return <p className="px-8 py-8 text-sm text-muted">…</p>
@@ -139,7 +142,23 @@ export function Studio() {
             <Download size={14} aria-hidden /> {t('studio.export')}
           </a>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDeleting(true)}
+          className="hover:text-danger"
+          aria-label={t('shorts.delete.one')}
+          title={t('shorts.delete.one')}
+        >
+          <Trash2 size={14} aria-hidden />
+        </Button>
       </header>
+      <DeleteShortsDialog
+        ids={deleting ? [s.id] : []}
+        name={s.hook || s.title}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => navigate('/shorts', { replace: true })}
+      />
       {review.error && <p className="mb-4 text-sm text-danger">{review.error.message}</p>}
 
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-border" role="tablist">

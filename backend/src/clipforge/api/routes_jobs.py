@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from clipforge.api.deps import DB
-from clipforge.api.schemas import JobCreate, JobOut, JobPage, JobTypeOut
+from clipforge.api.schemas import CountOut, JobCreate, JobOut, JobPage, JobTypeOut
 from clipforge.db.enums import JobStatus
 from clipforge.db.models import Job
 from clipforge.jobs import queue
@@ -70,6 +70,19 @@ def create_job(body: JobCreate, db: DB) -> JobOut:
     )
     db.commit()
     return JobOut.model_validate(job)
+
+
+@router.post("/cancel-all", response_model=CountOut)
+def cancel_all(db: DB) -> CountOut:
+    """Stop every queued and running job. Running ones end within a few seconds,
+    including the programs they started (see the worker)."""
+    return CountOut(count=queue.cancel_all(db))
+
+
+@router.delete("/history", response_model=CountOut)
+def clear_history(db: DB) -> CountOut:
+    """Delete finished jobs (succeeded, failed, cancelled). Active jobs are kept."""
+    return CountOut(count=queue.clear_history(db))
 
 
 @router.get("/{job_id}", response_model=JobOut)

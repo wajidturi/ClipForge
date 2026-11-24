@@ -8,6 +8,7 @@ SQLite and PostgreSQL alike (see docs/adr/0002-db-backed-job-queue.md).
 Lifecycle:  queued -> running -> succeeded | failed | cancelled
             running --(error, attempts left)--> queued (delayed by backoff)
             running --(lease expired: worker died)--> queued
+            queued|running --(stop)--> cancelled (with every job it started)
 """
 
 from __future__ import annotations
@@ -17,12 +18,15 @@ from collections.abc import Iterable, Sequence
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
+from clipforge.core.logging import get_logger
 from clipforge.db.base import utcnow
 from clipforge.db.enums import JobStatus
 from clipforge.db.models import Job
+
+log = get_logger(__name__)
 
 MAX_BACKOFF_S = 300
 
@@ -170,7 +174,10 @@ def complete(session: Session, job_id: uuid.UUID, result: dict[str, Any] | None 
 def fail(session: Session, job_id: uuid.UUID, error: str, *, retryable: bool = True) -> Job:
     job = get(session, job_id)
     job.error = error[-4000:]
-    if retryable and job.attempts < job.max_attempts and not job.cancel_requested:
+    if job.cancel_requested:  # a stopped job that raised on its way out
+        _finish(job, JobStatus.cancelled)
+        job.step = "cancelled"
+    elif retryable and job.attempts < job.max_attempts and not job.cancel_requested:
         job.status = JobStatus.queued
         job.available_at = utcnow() + timedelta(seconds=backoff_seconds(job.attempts))
         job.lease_owner = None
@@ -182,24 +189,96 @@ def fail(session: Session, job_id: uuid.UUID, error: str, *, retryable: bool = T
     return job
 
 
-def mark_cancelled(session: Session, job_id: uuid.UUID) -> Job:
+def mark_cancelled(session: Session, job_id: uuid.UUID, step: str = "cancelled") -> Job:
     job = get(session, job_id)
+    job.cancel_requested = True
     _finish(job, JobStatus.cancelled)
-    job.step = "cancelled"
+    job.step = step
     session.commit()
     return job
+
+
+ACTIVE = (JobStatus.queued, JobStatus.running)
+
+
+def _stop(job: Job, ended: list[tuple[str, dict[str, Any]]]) -> None:
+    """A queued job ends now; a running one is ended by its worker (see worker.py)."""
+    job.cancel_requested = True
+    if job.status == JobStatus.queued:
+        _finish(job, JobStatus.cancelled)
+        job.step = "cancelled"
+        ended.append((job.type, dict(job.payload or {})))
+
+
+def _cleanup(ended: list[tuple[str, dict[str, Any]]]) -> None:
+    """Queued jobs never reach a worker, so their cleanup (e.g. a Short that was set
+    to 'rendering' when its render was queued) runs here, after the commit."""
+    from clipforge.jobs.registry import get_spec  # lazy: handlers import this module
+
+    for type_, payload in ended:
+        spec = get_spec(type_)
+        if spec is None or spec.on_cancel is None:
+            continue
+        try:
+            spec.on_cancel(payload)
+        except Exception as e:
+            log.warning("job.on_cancel_error", type=type_, error=str(e))
+
+
+def _descendants(session: Session, job: Job) -> list[Job]:
+    """Active jobs started by this one: children by parent, and for a run's picking
+    job the renders of that run."""
+    out: list[Job] = []
+    todo = [job]
+    seen = {job.id}
+    while todo:
+        cur = todo.pop()
+        conds = [Job.parent_id == cur.id]
+        if cur.type == "run.select" and cur.run_id is not None:
+            conds.append(Job.run_id == cur.run_id)
+        for child in session.scalars(select(Job).where(Job.status.in_(ACTIVE), or_(*conds))):
+            if child.id not in seen:
+                seen.add(child.id)
+                out.append(child)
+                todo.append(child)
+    return out
 
 
 def request_cancel(session: Session, job_id: uuid.UUID) -> Job:
     job = get(session, job_id)
     if job.status.is_final:
         raise InvalidJobStateError(f"job is already {job.status.value}")
-    job.cancel_requested = True
-    if job.status == JobStatus.queued:
-        _finish(job, JobStatus.cancelled)
-        job.step = "cancelled"
+    ended: list[tuple[str, dict[str, Any]]] = []
+    for j in [job, *_descendants(session, job)]:
+        _stop(j, ended)
     session.commit()
+    _cleanup(ended)
     return job
+
+
+def cancel_all(session: Session) -> int:
+    """Stop every queued and running job. Returns how many were stopped."""
+    jobs = list(
+        session.scalars(select(Job).where(Job.status.in_(ACTIVE), Job.cancel_requested.is_(False)))
+    )
+    ended: list[tuple[str, dict[str, Any]]] = []
+    for j in jobs:
+        _stop(j, ended)
+    session.commit()
+    _cleanup(ended)
+    return len(jobs)
+
+
+FINISHED = (JobStatus.succeeded, JobStatus.failed, JobStatus.cancelled)
+
+
+def clear_history(session: Session) -> int:
+    """Delete finished jobs (succeeded, failed, cancelled). Active jobs stay."""
+    n = session.execute(
+        delete(Job).where(Job.status.in_(FINISHED)).execution_options(synchronize_session=False)
+    ).rowcount  # type: ignore[attr-defined]
+    session.commit()
+    return int(n or 0)
 
 
 def retry(session: Session, job_id: uuid.UUID) -> Job:
@@ -226,9 +305,11 @@ def requeue_expired(session: Session) -> int:
     expired = session.scalars(
         select(Job).where(Job.status == JobStatus.running, Job.lease_until < now)
     ).all()
+    ended: list[tuple[str, dict[str, Any]]] = []
     for job in expired:
         if job.cancel_requested:
             _finish(job, JobStatus.cancelled)
+            ended.append((job.type, dict(job.payload or {})))
         elif job.attempts < job.max_attempts:
             job.status = JobStatus.queued
             job.lease_owner = None
@@ -237,5 +318,7 @@ def requeue_expired(session: Session) -> int:
         else:
             job.error = "worker stopped responding"
             _finish(job, JobStatus.failed)
+            ended.append((job.type, dict(job.payload or {})))
     session.commit()
+    _cleanup(ended)
     return len(expired)

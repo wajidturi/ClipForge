@@ -1,5 +1,5 @@
 /** Small design-system primitives (token-based; light + dark). */
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
+import type { ComponentProps, HTMLAttributes, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -16,7 +16,7 @@ export function Button({
   size = 'md',
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
+}: ComponentProps<'button'> & { variant?: Variant; size?: 'sm' | 'md' }) {
   return (
     <button
       className={cn(

@@ -1,8 +1,9 @@
-import { Check, Loader2, Search, X } from 'lucide-react'
+import { Check, Loader2, Search, Trash2, X } from 'lucide-react'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router'
 import { Button, Card } from '@/components/ui'
+import { DeleteShortsDialog } from '@/features/shorts/DeleteShorts'
 import { ShortTile } from '@/features/shorts/ShortTile'
 import type { ShortStatus } from '@/lib/api/client'
 import { useBulkReview, useShorts, type LibraryFilter } from '@/lib/shorts'
@@ -37,6 +38,7 @@ export function Library() {
   const total = shorts.data?.pages[0]?.total ?? 0
   const [selected, setSelected] = useState<string[]>([])
   const bulk = useBulkReview()
+  const [toDelete, setToDelete] = useState<{ ids: string[]; name?: string | null }>({ ids: [] })
 
   const setParam = (k: string, v: string | null) => {
     const next = new URLSearchParams(params)
@@ -113,6 +115,9 @@ export function Library() {
           >
             <X size={14} aria-hidden /> {t('review.reject')}
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => setToDelete({ ids: selected })}>
+            <Trash2 size={14} aria-hidden /> {t('shorts.delete.confirm')}
+          </Button>
           <button
             className="ml-auto text-xs text-muted hover:text-fg"
             onClick={() => setSelected([])}
@@ -152,6 +157,7 @@ export function Library() {
                 short={s}
                 selected={selected.includes(s.id)}
                 onToggle={() => toggle(s.id)}
+                onDelete={() => setToDelete({ ids: [s.id], name: s.hook || s.title })}
               />
             ))}
           </div>
@@ -171,6 +177,12 @@ export function Library() {
           )}
         </>
       )}
+      <DeleteShortsDialog
+        ids={toDelete.ids}
+        name={toDelete.name}
+        onClose={() => setToDelete({ ids: [] })}
+        onDeleted={(gone) => setSelected((s) => s.filter((id) => !gone.includes(id)))}
+      />
     </div>
   )
 }

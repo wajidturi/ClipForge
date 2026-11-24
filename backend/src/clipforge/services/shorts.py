@@ -15,17 +15,19 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import uuid
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from clipforge.core.config import get_settings
 from clipforge.db.enums import JobStatus, QcVerdict, ShortStatus, SourceStatus
 from clipforge.db.models import (
     Job,
+    MediaAsset,
     QcReport,
     Run,
     Short,
@@ -34,6 +36,7 @@ from clipforge.db.models import (
     Source,
     Transcript,
 )
+from clipforge.jobs import queue
 from clipforge.pipeline.selection.validate import clean_hashtags, clean_hook, clean_title, snap
 from clipforge.services.runs import load_sentences
 
@@ -271,3 +274,38 @@ def words_view(db: Session, short: Short, context_s: float = 90.0) -> dict[str, 
         "overrides": overrides,
         "sentences": context,
     }
+
+
+# ------------------------------------------------------------------ permanent delete
+def purge(db: Session, ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    """Delete Shorts for good: stop their renders, remove every file (videos, covers,
+    cached cuts, editor previews, preview strips) and every row (parts, versions, QC,
+    AI edits, schedule entries, media records). Their time ranges become free for new
+    runs. Returns the ids that existed."""
+    shorts = list(db.scalars(select(Short).where(Short.id.in_(ids))))
+    found = [s.id for s in shorts]
+    if not found:
+        return []
+    for job in db.scalars(
+        select(Job).where(
+            Job.subject_type == "short",
+            Job.subject_id.in_(found),
+            Job.status.in_([JobStatus.queued, JobStatus.running]),
+        )
+    ):
+        queue.request_cancel(db, job.id)
+    version_ids = list(db.scalars(select(ShortVersion.id).where(ShortVersion.short_id.in_(found))))
+    db.execute(
+        delete(MediaAsset)
+        .where(MediaAsset.owner_id.in_([*found, *version_ids]))
+        .execution_options(synchronize_session=False)
+    )
+    for s in shorts:
+        db.delete(s)
+    db.commit()
+    root = get_settings().resolved_data_dir
+    for sid in found:
+        shutil.rmtree(root / "renders" / str(sid), ignore_errors=True)
+        for strip in (root / "previews").glob(f"{sid}_*.jpg"):
+            strip.unlink(missing_ok=True)
+    return found
