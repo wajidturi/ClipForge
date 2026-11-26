@@ -2911,6 +2911,30 @@
             ],
             "title": "Cam"
           },
+          "cams": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cams",
+            "description": "facecam panel boxes, left to right (x, y, w, h)"
+          },
+          "primary": {
+            "type": "integer",
+            "title": "Primary",
+            "description": "index in cams of the main person (floating bubble)",
+            "default": 0
+          },
+          "cam_kind": {
+            "type": "string",
+            "enum": ["overlay", "camera", "action"],
+            "title": "Cam Kind",
+            "description": "overlay = streamer facecams, camera = people on the main camera, action = nobody found (a close-up of the action)",
+            "default": "overlay"
+          },
           "targets": {
             "items": {
               "prefixItems": [

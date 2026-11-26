@@ -25,7 +25,18 @@ from clipforge.pipeline.render import captions, compose, raster
 from clipforge.pipeline.render.edl import CaptionWord
 from clipforge.pipeline.render.effects import audio_chain, zoom_expression
 from clipforge.pipeline.render.reframe import Box, track_targets, x_expression
-from clipforge.pipeline.render.scene import H, Layer, Rect, Scene, W, cover_crop, fill_text, panels
+from clipforge.pipeline.render.scene import (
+    CAM_MAX_GROW,
+    H,
+    Layer,
+    Rect,
+    Scene,
+    W,
+    cam_tiles,
+    cover_crop,
+    fill_text,
+    panels,
+)
 
 FPS = compose.FPS
 IN_DUR = {"pop": 0.37, "zoom": 0.3, "fade": 0.3, "none": 0.0}
@@ -49,6 +60,17 @@ class CutPlan:
     zoom_peaks: list[float]
     measured: dict[str, str] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    cams: list[Box] = field(default_factory=list)  # every facecam / person, left to right
+    cam_kind: str = "overlay"
+
+    def cam_list(self, template: str) -> list[Box]:
+        """What the facecam panel shows: everyone side by side in stacked templates,
+        the main person in the floating bubble."""
+        cams = self.cams or ([self.cam] if self.cam else [])
+        if template == "floating_facecam":
+            main = self.cam if self.cam in cams else (cams[0] if cams else None)
+            return [main] if main else []
+        return cams
 
 
 # ------------------------------------------------------------------ animation exprs
@@ -126,6 +148,39 @@ def _game_chain(plan: CutPlan, rect: Rect, fit: str, label: str, src: str) -> li
     return [f"{src}crop={cw}:{ch}:'{x}':{y},scale={rect.w}:{rect.h},setsar=1[{label}]"]
 
 
+HIDE_GROW = 1.15  # cam boxes come from the face, so cover a little more of the overlay
+
+
+def hide_rects(cams: list[Box], src_w: int, src_h: int) -> list[tuple[int, int, int, int]]:
+    """Source pixels (x, y, w, h) of each facecam overlay, slightly enlarged."""
+    out = []
+    for c in cams:
+        b = c.expand(HIDE_GROW, HIDE_GROW)
+        x, y = int(b.x * src_w), int(b.y * src_h)
+        w = compose._even(min(b.w * src_w, src_w - x))
+        h = compose._even(min(b.h * src_h, src_h - y))
+        if w >= 8 and h >= 8:
+            out.append((x, y, w, h))
+    return out
+
+
+def hide_cams(cams: list[Box], src_w: int, src_h: int, src: str, out: str) -> list[str]:
+    """Blur the facecam overlays inside the gameplay, so a game crop that reaches a
+    corner does not show a second, cut-off copy of the streamer."""
+    rects = hide_rects(cams, src_w, src_h)
+    if not rects:
+        return [f"{src}copy{out}"]
+    g = [f"{src}split={len(rects) + 1}[hb]" + "".join(f"[hc{i}]" for i in range(len(rects)))]
+    base = "[hb]"
+    for i, (x, y, w, h) in enumerate(rects):
+        r = max(2, min(20, w // 8, h // 8))
+        g.append(f"[hc{i}]crop={w}:{h}:{x}:{y},boxblur={r}:3,eq=brightness=-0.08[hz{i}]")
+        nxt = out if i == len(rects) - 1 else f"[hd{i}]"
+        g.append(f"{base}[hz{i}]overlay={x}:{y}{nxt}")
+        base = nxt
+    return g
+
+
 def build_graph(
     scene: Scene,
     plan: CutPlan,
@@ -145,22 +200,26 @@ def build_graph(
 
     p = panels(scene)
     fit = scene.regions.fit if scene.template in ("floating_facecam", "cinematic") else "fill"
-    cam = plan.cam
-    want_cam = "cam" in p and cam is not None
+    cams = plan.cam_list(scene.template) if "cam" in p else []
+    tiles = cam_tiles(p["cam"], len(cams)) if cams else []
     g: list[str] = [
-        f"[0:v]fps={FPS},split={2 if want_cam else 1}" + ("[sg][sc]" if want_cam else "[sg]")
+        f"[0:v]fps={FPS},split={1 + len(cams)}[sg]" + "".join(f"[sc{i}]" for i in range(len(cams)))
     ]
+    game_src = "[sg]"
+    if cams and plan.cam_kind == "overlay":  # the cams have their own panel: blur them here
+        g += hide_cams(plan.cams, plan.src_w, plan.src_h, "[sg]", "[sgh]")
+        game_src = "[sgh]"
     fx = scene.effects
     gr = p["game"]
     z = zoom_expression(plan.zoom_peaks, amount=fx.zoom_amount) if fx.zoom_punch else "1"
     if z != "1":  # punch-in on the gameplay only (frames and the facecam stay put)
-        g += _game_chain(plan, gr, fit, "game0", "[sg]")
+        g += _game_chain(plan, gr, fit, "game0", game_src)
         g.append(
             f"[game0]scale=w='2*trunc({gr.w / 2}*({z}))':h='2*trunc({gr.h / 2}*({z}))':"
             f"eval=frame,crop={gr.w}:{gr.h}[game]"
         )
     else:
-        g += _game_chain(plan, gr, fit, "game", "[sg]")
+        g += _game_chain(plan, gr, fit, "game", game_src)
     full = p["game"] == Rect(0, 0, W, H)
     if full:
         base = "[game]"
@@ -169,21 +228,22 @@ def build_graph(
         g.append(f"color=c=0x{bg}:s={W}x{H}:r={FPS}:d={d:.3f}[canvas]")
         g.append(f"[canvas][game]overlay={p['game'].x}:{p['game'].y}:shortest=1[b0]")
         base = "[b0]"
-    if want_cam and cam is not None:
-        r = p["cam"]
-        x, y, cw, ch = cover_crop((cam.x, cam.y, cam.w, cam.h), r.w / r.h, plan.src_w, plan.src_h)
-        g.append(f"[sc]crop={cw}:{ch}:{x}:{y},scale={r.w}:{r.h},setsar=1[camraw]")
+    for i, (cam, r) in enumerate(zip(cams, tiles, strict=True)):
+        x, y, cw, ch = cover_crop(
+            (cam.x, cam.y, cam.w, cam.h), r.w / r.h, plan.src_w, plan.src_h, CAM_MAX_GROW
+        )
+        g.append(f"[sc{i}]crop={cw}:{ch}:{x}:{y},scale={r.w}:{r.h},setsar=1[camraw{i}]")
         if scene.template == "floating_facecam":
             mask = workdir / "cam_mask.png"
             raster.cam_mask(r.w, scene.regions.cam.shape).save(mask)
             m = add_image(mask)
-            g.append(f"{m}format=gray[cm]")
-            g.append("[camraw]format=rgba[camrgba]")
-            g.append("[camrgba][cm]alphamerge[cam]")
+            g.append(f"{m}format=gray[cm{i}]")
+            g.append(f"[camraw{i}]format=rgba[camrgba{i}]")
+            g.append(f"[camrgba{i}][cm{i}]alphamerge[cam{i}]")
         else:
-            g.append("[camraw]copy[cam]")
-        g.append(f"{base}[cam]overlay={r.x}:{r.y}:shortest=1[b1]")
-        base = "[b1]"
+            g.append(f"[camraw{i}]copy[cam{i}]")
+        g.append(f"{base}[cam{i}]overlay={r.x}:{r.y}:shortest=1[b1_{i}]")
+        base = f"[b1_{i}]"
 
     moments = [m for m in fx.moments if 0 <= m < d]
     chain = []

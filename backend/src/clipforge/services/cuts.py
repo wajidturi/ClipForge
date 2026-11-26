@@ -39,7 +39,7 @@ from clipforge.pipeline.render.scene_render import CutPlan
 from clipforge.pipeline.signals import vision as vision_sig
 from clipforge.services import segments
 
-CUT_VERSION = 2  # 2: 1080p editor preview
+CUT_VERSION = 3  # 2: 1080p editor preview; 3: every person / facecam, who talks
 KEEP_CUTS = 2
 PAD_S = 2.0
 REACTIONS = [
@@ -71,20 +71,41 @@ class Cut:
     @property
     def plan(self) -> CutPlan:
         d = self.data
-        cam = Box(*d["cam"]) if d.get("cam") else None
+        cams, primary, kind = cam_boxes(d)
         return CutPlan(
             d["src_w"],
             d["src_h"],
             d["duration"],
-            cam,
+            cams[primary],
             [(t, x) for t, x in d["targets"]],
             d["cuts"],
             d["zoom_peaks"],
             d.get("measured"),
+            cams=cams,
+            cam_kind=kind,
         )
 
     def keyed(self) -> list[tuple[CaptionWord, str]]:
         return [(CaptionWord(a, b, t), k) for a, b, t, k in self.data["words"]]
+
+
+def cam_boxes(d: dict[str, Any]) -> tuple[list[Box], int, str]:
+    """What a facecam panel shows: (boxes left to right, main one, kind).
+
+    kind: ``overlay`` (streamer facecams), ``camera`` (people on the main camera) or
+    ``action`` (nobody found: a close-up of the action, so every template still works).
+    Cuts made before v3 only know one facecam box."""
+    if d.get("cams"):
+        cams = [Box(*b) for b in d["cams"]]
+        return cams, min(int(d.get("primary") or 0), len(cams) - 1), d.get("cam_kind") or "overlay"
+    if d.get("cam"):
+        return [Box(*d["cam"])], 0, "overlay"
+    targets = [(t, x) for t, x in d.get("targets") or []]
+    return [reframe.action_box(targets)], 0, "action"
+
+
+def has_people(d: dict[str, Any]) -> bool:
+    return cam_boxes(d)[2] != "action"
 
 
 def cut_key(source_id: uuid.UUID, start: float, end: float, edl_json: list[Any]) -> str:
@@ -160,7 +181,8 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
     except Exception:
         face_model = None
     a = reframe.analyze(edited, face_model=face_model)
-    cam = reframe.detect_cam(a.samples)
+    people = reframe.find_people(a.samples)
+    cam = people.cams[people.primary] if people.kind == "overlay" else None
     job.check_cancelled()
     peaks_src = ([info["hottest"]] if info["hottest"] is not None else []) + info["loud"]
     zoom_peaks = pick_peaks([edl.map_clamped(t) for t in peaks_src], edl.duration)
@@ -203,8 +225,12 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
         "src_h": a.height,
         "duration": edl.duration,
         "cam": [cam.x, cam.y, cam.w, cam.h] if cam else None,
-        # follow targets with the facecam masked out (gaming: follow the action)
-        "targets": reframe.sample_targets(a, cam),
+        "cams": [[b.x, b.y, b.w, b.h] for b in people.cams],
+        "cam_kind": people.kind if people.cams else "none",
+        "primary": people.primary,
+        # gaming: follow the action with the facecams masked out; people on camera:
+        # keep the group in the shot, or follow whoever is talking
+        "targets": reframe.sample_targets(a, people),
         "cuts": a.cuts,
         "zoom_peaks": zoom_peaks,
         "measured": measured,

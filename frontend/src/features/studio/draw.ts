@@ -66,17 +66,54 @@ export function panels(scene: Scene): Record<string, Rect> {
   return out
 }
 
+export const TILE_GAP = 8 // px between people sharing the facecam panel
+
+/** Like scene.cam_tiles: split the facecam panel into n side-by-side tiles. */
+export function camTiles(rect: Rect, n: number, gap = TILE_GAP): Rect[] {
+  if (n <= 1) return n === 1 ? [rect] : []
+  const w = even((rect.w - gap * (n - 1)) / n)
+  const out: Rect[] = []
+  for (let i = 0; i < n - 1; i++) out.push({ x: rect.x + i * (w + gap), y: rect.y, w, h: rect.h })
+  const lastX = rect.x + (n - 1) * (w + gap)
+  out.push({ x: lastX, y: rect.y, w: even(rect.x + rect.w - lastX), h: rect.h })
+  return out
+}
+
+/** Like CutPlan.cam_list: everyone in stacked templates, the main person in the bubble. */
+export function camList(
+  cut: { cam?: number[] | null; cams?: number[][]; primary?: number },
+  template: string,
+): number[][] {
+  const cams = cut.cams?.length ? cut.cams : cut.cam ? [cut.cam] : []
+  if (template === 'floating_facecam') {
+    const main = cams[cut.primary ?? 0] ?? cams[0]
+    return main ? [main] : []
+  }
+  return cams
+}
+
+export const CAM_MAX_GROW = 1.3 // like scene.CAM_MAX_GROW
+
+/** Like scene.cover_crop (with its max_grow for facecam tiles). */
 export function coverCrop(
   box: number[],
   aspect: number,
   srcW: number,
   srcH: number,
+  maxGrow?: number,
 ): [number, number, number, number] {
   const [bx, by, bw, bh] = box as [number, number, number, number]
   let cw = bw * srcW
   let ch = bh * srcH
-  if (cw / ch < aspect) cw = ch * aspect
-  else ch = cw / aspect
+  if (cw / ch < aspect) {
+    if (maxGrow && ch * aspect > cw * maxGrow) {
+      cw = cw * maxGrow
+      ch = cw / aspect
+    } else cw = ch * aspect
+  } else if (maxGrow && cw / aspect > ch * maxGrow) {
+    ch = ch * maxGrow
+    cw = ch * aspect
+  } else ch = cw / aspect
   if (cw > srcW) {
     cw = srcW
     ch = srcW / aspect
@@ -90,6 +127,26 @@ export function coverCrop(
   const x = Math.min(Math.max(cx - cw / 2, 0), srcW - cw)
   const y = Math.min(Math.max(cy - ch / 2, 0), srcH - ch)
   return [Math.trunc(x), Math.trunc(y), even(cw), even(ch)]
+}
+
+const HIDE_GROW = 1.15
+const floorEven = (v: number) => Math.max(2, Math.floor(Math.trunc(v) / 2) * 2) // compose._even
+
+/** Like scene_render.hide_rects: facecam overlays (source px) to blur in the gameplay. */
+export function hideRects(cams: number[][], srcW: number, srcH: number): number[][] {
+  const out: number[][] = []
+  for (const [bx, by, bw, bh] of cams as [number, number, number, number][]) {
+    const w0 = Math.min(1, bw * HIDE_GROW)
+    const h0 = Math.min(1, bh * HIDE_GROW)
+    const x0 = Math.min(Math.max(0, bx + bw / 2 - w0 / 2), 1 - w0)
+    const y0 = Math.min(Math.max(0, by + bh / 2 - h0 / 2), 1 - h0)
+    const x = Math.trunc(x0 * srcW)
+    const y = Math.trunc(y0 * srcH)
+    const w = floorEven(Math.min(w0 * srcW, srcW - x))
+    const h = floorEven(Math.min(h0 * srcH, srcH - y))
+    if (w >= 8 && h >= 8) out.push([x, y, w, h])
+  }
+  return out
 }
 
 // ------------------------------------------------------------------ text

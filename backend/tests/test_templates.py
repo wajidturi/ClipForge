@@ -49,11 +49,25 @@ def test_stacked_panels_do_not_overlap_and_follow_the_split() -> None:
     assert sc.panels(s)["game"].h > p["game"].h
 
 
-def test_templates_needing_a_facecam_fall_back_to_cinematic() -> None:
-    assert sc.resolve_template("dual_vision", has_cam=False)[0] == "cinematic"
+def test_the_chosen_template_is_always_used() -> None:
+    """Real bug: with no facecam found every template quietly became Cinematic."""
+    t, note = sc.resolve_template("dual_vision", has_cam=False)
+    assert t == "dual_vision" and note and "close-up" in note
     assert sc.resolve_template("auto", has_cam=True) == ("streamer_first", None)
+    assert sc.resolve_template("auto", has_cam=True, kind="camera")[0] == "cinematic"
+    assert sc.resolve_template("auto", has_cam=False)[0] == "cinematic"
     assert sc.resolve_template("stack", has_cam=True)[0] == "streamer_first"  # old layout
     assert sc.resolve_template("cinematic", has_cam=False) == ("cinematic", None)
+
+
+def test_each_template_has_its_own_caption_look() -> None:
+    looks = {t: sc.default_scene(t, CTX).captions.preset for t in sc.TEMPLATE_IDS}
+    assert len(set(looks.values())) == len(looks)
+
+
+def test_switching_template_takes_the_new_caption_look_unless_customised() -> None:
+    s = sc.default_scene("streamer_first", CTX)
+    assert sc.switch_template(s, "cinematic", CTX).captions.preset == "classic"
 
 
 def test_switching_template_keeps_user_layers_and_caption_style() -> None:
@@ -192,7 +206,11 @@ def test_fonts_are_served(client: TestClient) -> None:
 def test_template_render_then_studio_rerender_reuses_the_cut(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(reframe, "detect_cam", lambda samples: Box(0.75, 0.05, 0.2, 0.3))
+    monkeypatch.setattr(
+        reframe,
+        "find_people",
+        lambda samples: reframe.People("overlay", [Box(0.75, 0.05, 0.2, 0.3)]),
+    )
     sid = seed_short(video_s=24, start=4, end=18)
     short = render(client, sid, template="streamer_first")
     v1 = short["active"]

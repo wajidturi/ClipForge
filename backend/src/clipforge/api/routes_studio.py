@@ -25,7 +25,9 @@ def _ctx(cut: cuts.Cut | None, duration: float) -> sc.Ctx:
     if cut is None:
         return sc.Ctx(duration, [], has_cam=True)
     d = cut.data
-    return sc.Ctx(d["duration"], d["zoom_peaks"], has_cam=d["cam"] is not None)
+    return sc.Ctx(
+        d["duration"], d["zoom_peaks"], has_cam=cuts.has_people(d), cam_kind=cuts.cam_boxes(d)[2]
+    )
 
 
 @router.get("/shorts/{short_id}/studio", response_model=StudioData)
@@ -40,7 +42,7 @@ def studio(short_id: uuid.UUID, db: DB) -> StudioData:
     if st.get("scene"):
         scene = sc.Scene.model_validate(st["scene"])
     else:  # never rendered, or rendered before templates existed
-        t, _ = sc.resolve_template(st.get("layout_used") or "auto", ctx.has_cam)
+        t, _ = sc.resolve_template(st.get("layout_used") or "auto", ctx.has_cam, ctx.cam_kind)
         scene = sc.default_scene(t, ctx)
     src = db.get(Source, short.source_id)
     values = {
@@ -52,6 +54,7 @@ def studio(short_id: uuid.UUID, db: DB) -> StudioData:
     cut_out = None
     if cut is not None and cut.data.get("preview_asset_id"):
         d = cut.data
+        cams, primary, kind = cuts.cam_boxes(d)
         cut_out = CutOut(
             key=cut.key,
             preview_asset_id=uuid.UUID(d["preview_asset_id"]),
@@ -59,6 +62,9 @@ def studio(short_id: uuid.UUID, db: DB) -> StudioData:
             src_h=d["src_h"],
             duration=d["duration"],
             cam=d["cam"],
+            cams=[[b.x, b.y, b.w, b.h] for b in cams],
+            primary=primary,
+            cam_kind=kind,
             targets=[(t, x) for t, x in d["targets"]],
             cuts=d["cuts"],
             zoom_peaks=d["zoom_peaks"],
@@ -85,7 +91,7 @@ def switch_template(short_id: uuid.UUID, body: TemplateSwitch, db: DB) -> sc.Sce
     cut = cuts.load_cut(short.id, st["cut_key"]) if st.get("cut_key") else None
     rng = st.get("range") or [0, 30]
     ctx = _ctx(cut, float(rng[1]) - float(rng[0]))
-    t, _ = sc.resolve_template(body.template, ctx.has_cam if cut else True)
+    t, _ = sc.resolve_template(body.template, ctx.has_cam if cut else True, ctx.cam_kind)
     if body.scene is None:
         return sc.default_scene(t, ctx)
     return sc.switch_template(body.scene, t, ctx)

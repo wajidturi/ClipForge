@@ -236,7 +236,8 @@ class Ctx:
 
     duration: float
     peaks: list[float]
-    has_cam: bool = True
+    has_cam: bool = True  # a facecam or people were found (else the panel shows the action)
+    cam_kind: str = "overlay"  # overlay | camera | action (see cuts.cam_boxes)
 
 
 def _peak(ctx: Ctx, i: int = 0, fallback: float = 1.5) -> float:
@@ -363,7 +364,7 @@ def default_scene(template: str, ctx: Ctx) -> Scene:
         return Scene(
             template="gameplay_first",
             regions=Regions(split=0.62, frame=Frame(color="#22D3EE", color2="#8B5CF6")),
-            captions=caption_preset("gaming", y=0.53),
+            captions=caption_preset("box", y=0.53),
             effects=Effects(zoom_punch=True, shake=True, moments=ctx.peaks[:3]),
             layers=[
                 _t(
@@ -435,7 +436,7 @@ def default_scene(template: str, ctx: Ctx) -> Scene:
         return Scene(
             template="dual_vision",
             regions=Regions(split=0.5, divider=Divider()),
-            captions=caption_preset("gaming", y=0.78),
+            captions=caption_preset("word", y=0.78),
             effects=Effects(zoom_punch=True, flash=True, moments=ctx.peaks[:3]),
             layers=[
                 _t(
@@ -493,7 +494,7 @@ def default_scene(template: str, ctx: Ctx) -> Scene:
         return Scene(
             template="floating_facecam",
             regions=Regions(cam=Cam(), frame=Frame(width=6, gap=0, radius=0)),
-            captions=caption_preset("gaming", y=0.58),
+            captions=caption_preset("karaoke", y=0.58),
             effects=Effects(zoom_punch=True, moments=ctx.peaks[:3]),
             layers=[
                 _t(
@@ -562,7 +563,7 @@ def default_scene(template: str, ctx: Ctx) -> Scene:
     return Scene(
         template="cinematic",
         regions=Regions(fit="fill", frame=Frame(style="none", gap=0, radius=0)),
-        captions=caption_preset("gaming", y=0.62),
+        captions=caption_preset("classic", y=0.62),
         effects=Effects(
             zoom_punch=True,
             zoom_amount=0.14,
@@ -630,23 +631,35 @@ def default_scene(template: str, ctx: Ctx) -> Scene:
 USER_ROLES = (None, "logo", "user")  # layers that survive a template switch
 
 
+def _captions_customised(scene: Scene) -> bool:
+    """Did the user change the captions from what the template started with?"""
+    base = default_scene(scene.template, Ctx(10.0, [])).captions
+    ignore = {"y"}
+    return scene.captions.model_dump(exclude=ignore) != base.model_dump(exclude=ignore)
+
+
 def switch_template(scene: Scene, template: str, ctx: Ctx) -> Scene:
-    """New template defaults, keeping what the user added (logos, own text, emojis)
-    and their caption choices."""
+    """New template defaults, keeping what the user added (logos, own text, emojis).
+    Captions the user changed are kept; untouched ones take the new template's look."""
     new = default_scene(template, ctx)
     keep = [ly for ly in scene.layers if ly.role in USER_ROLES]
     new.layers += keep
-    new.captions = scene.captions.model_copy(update={"y": new.captions.y})
+    if _captions_customised(scene):
+        new.captions = scene.captions.model_copy(update={"y": new.captions.y})
     return new
 
 
-def resolve_template(requested: str | None, has_cam: bool) -> tuple[str, str | None]:
-    """(template used, note). Facecam templates need a detected facecam."""
+def resolve_template(
+    requested: str | None, has_cam: bool, kind: str = "overlay"
+) -> tuple[str, str | None]:
+    """(template used, note). The chosen template is always used; ``auto`` picks one:
+    Streamer First for facecam overlays, Cinematic for people on camera or no people.
+    With no facecam or people, a facecam panel shows a close-up of the action."""
     t = LEGACY_LAYOUT.get(requested or "", requested or "auto")
     if t not in TEMPLATES:
-        t = "streamer_first" if has_cam else "cinematic"
+        t = "streamer_first" if has_cam and kind == "overlay" else "cinematic"
     if TEMPLATES[t].needs_cam and not has_cam:
-        return "cinematic", f"No facecam found, so '{TEMPLATES[t].name}' became Cinematic Gaming"
+        return t, "No facecam or people found, so the facecam panel shows a close-up of the action"
     return t, None
 
 
@@ -693,13 +706,42 @@ def panels(scene: Scene) -> dict[str, Rect]:
     return out
 
 
+TILE_GAP = 8  # px between people sharing the facecam panel
+CAM_MAX_GROW = 1.3  # facecam crops: see cover_crop
+
+
+def cam_tiles(rect: Rect, n: int, gap: int = TILE_GAP) -> list[Rect]:
+    """Split the facecam panel into n side-by-side tiles (one per streamer)."""
+    if n <= 1:
+        return [rect] if n == 1 else []
+    w = even((rect.w - gap * (n - 1)) / n)
+    out = [Rect(rect.x + i * (w + gap), rect.y, w, rect.h) for i in range(n - 1)]
+    last_x = rect.x + (n - 1) * (w + gap)
+    return [*out, Rect(last_x, rect.y, even(rect.x + rect.w - last_x), rect.h)]
+
+
 def cover_crop(
-    box: tuple[float, float, float, float], aspect: float, src_w: int, src_h: int
+    box: tuple[float, float, float, float],
+    aspect: float,
+    src_w: int,
+    src_h: int,
+    max_grow: float | None = None,
 ) -> tuple[int, int, int, int]:
-    """Source crop (x, y, w, h px) of aspect w/h around a normalised box, covering it."""
+    """Source crop (x, y, w, h px) of aspect w/h around a normalised box, covering it.
+
+    With ``max_grow`` the crop may exceed the box by at most that factor on the side
+    that has to grow; beyond it, the other side is cut instead (a narrow facecam tile
+    zooms in on the face rather than pulling in what sits above or below the cam)."""
     bx, by, bw, bh = box
     cw, ch = bw * src_w, bh * src_h
     if cw / ch < aspect:
+        if max_grow and ch * aspect > cw * max_grow:
+            cw = cw * max_grow
+            ch = cw / aspect
+        else:
+            cw = ch * aspect
+    elif max_grow and cw / aspect > ch * max_grow:
+        ch = ch * max_grow
         cw = ch * aspect
     else:
         ch = cw / aspect

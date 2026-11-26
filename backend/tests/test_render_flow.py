@@ -177,7 +177,11 @@ def test_rerender_creates_a_new_version_with_extra_aspect(client: TestClient) ->
 def test_facecam_layouts_render(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, layout: str
 ) -> None:
-    monkeypatch.setattr(reframe, "detect_cam", lambda samples: Box(0.75, 0.05, 0.2, 0.3))
+    monkeypatch.setattr(
+        reframe,
+        "find_people",
+        lambda samples: reframe.People("overlay", [Box(0.75, 0.05, 0.2, 0.3)]),
+    )
     sid = seed_short(video_s=24, start=4, end=18)
     short = render(client, sid, template=layout, style="karaoke")
     assert short["status"] == "review", short["versions"][0]["qc_reasons"]

@@ -425,6 +425,15 @@ class CutOut(BaseModel):
     src_h: int
     duration: float
     cam: list[float] | None
+    cams: list[list[float]] = Field(
+        default_factory=list, description="facecam panel boxes, left to right (x, y, w, h)"
+    )
+    primary: int = Field(0, description="index in cams of the main person (floating bubble)")
+    cam_kind: Literal["overlay", "camera", "action"] = Field(
+        "overlay",
+        description="overlay = streamer facecams, camera = people on the main camera, "
+        "action = nobody found (a close-up of the action)",
+    )
     targets: list[tuple[float, float | None]]
     cuts: list[float]
     zoom_peaks: list[float]

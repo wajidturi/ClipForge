@@ -13,8 +13,30 @@ all inside the app. Design: [ADR 0006](../adr/0006-scene-rendering-and-studio.md
 | **Floating Facecam** | full-screen gameplay + round facecam bubble with glowing ring | big slanted title, name tag, pulsing SUBSCRIBE 🔔 in the last 4 s, reaction (hidden) | zoom punch | bubble size/position (drag on the preview), shape, border, glow, fit |
 | **Cinematic Gaming** | full screen | 💀 title burst, giant impact word on the second peak (`{reaction}`, zooms in and shakes), name pill | stronger zoom, shake, flash, glitch, speed lines, vignette, cinematic grade | fit, every effect |
 
-`Automatic` picks Streamer First when a facecam is detected, otherwise Cinematic Gaming.
-Facecam templates need a detected facecam and fall back to Cinematic Gaming (with a note).
+The chosen template is always used. Each one has its own caption look (Gaming, Box,
+One word, Karaoke, Classic); switching template takes the new look unless you changed
+the captions yourself. `Automatic` picks Streamer First when facecams are found,
+otherwise Cinematic Gaming.
+
+### People and facecams (`reframe.find_people`)
+
+MediaPipe's detector only sees faces that fill a good part of the image, so frames are
+also scanned in overlapping 480 px tiles (frame scaled to 1920 wide) to find the small
+(~100 px) faces inside facecam overlays: the whole frame once a second, and in between
+only a tile around each small face found. Faces are linked across samples by
+position, and each person gets a mouth-movement score (lip gap / face height) that says
+who is talking.
+
+| Found | Facecam panel shows | Crop of the main footage |
+|---|---|---|
+| **overlay**: steady, tiny (< 2.5% of the frame), off-centre faces | one tile per cam overlay, side by side (up to 3); people sharing one cam stay in one tile; the floating bubble shows whoever talks most | follows the action with every cam masked out |
+| **camera**: people filmed by the main camera (IRL, couch streams) | one tile per person | keeps the group in the shot when it fits 9:16, else follows whoever is talking (switches only when someone clearly talks more) |
+| nobody | a close-up of where the action mostly is (with a note) | follows the action |
+
+When the cams have their own panel, the overlays are blurred inside the gameplay so a
+crop that reaches a corner does not show a cut-off second copy of the streamer. A narrow
+facecam tile zooms in on the face (the crop grows at most 1.3× past the cam box) instead
+of pulling in what sits above or below the cam.
 
 `{reaction}` is a short exclamation the streamer actually said near the peak ("OH MY GOD!",
 "NO WAY!", "LET'S GO!"…), found in the transcript, else "NO WAY!".
@@ -83,8 +105,7 @@ render sends the scene).
 
 ## Not done yet
 
-- Facecam templates were exercised by backend tests with a simulated facecam and by
-  hand on synthetic clips; a check on a real facecam stream in the browser is still to do.
+- Facecam analysis costs ~0.45 s per second of clip (the tile scan).
 - Custom sticker images (beyond logos), sound effects, per-word caption animation styles,
   a timeline track view, and keyframed motion are natural next steps.
 - The glitch effect is approximated in the preview.

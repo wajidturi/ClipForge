@@ -203,7 +203,9 @@ def resolve_scene(
     """Which scene to draw: one sent by the studio, the previous version's (kept on a
     plain re-render), or the template's defaults. Returns (scene, note)."""
     d = cut.data
-    ctx = sc.Ctx(d["duration"], d["zoom_peaks"], has_cam=d["cam"] is not None)
+    ctx = sc.Ctx(
+        d["duration"], d["zoom_peaks"], has_cam=cuts.has_people(d), cam_kind=cuts.cam_boxes(d)[2]
+    )
     prev = sc.Scene.model_validate(info["prev_scene"]) if info.get("prev_scene") else None
     if opts.get("scene"):
         scene = sc.Scene.model_validate(opts["scene"])
@@ -213,12 +215,12 @@ def resolve_scene(
         if prev is not None and requested in ("auto", prev.template):
             scene = prev
         else:
-            t, _ = sc.resolve_template(requested, ctx.has_cam)
+            t, _ = sc.resolve_template(requested, ctx.has_cam, ctx.cam_kind)
             scene = sc.switch_template(prev, t, ctx) if prev else sc.default_scene(t, ctx)
         style = opts.get("style")
         if style and style != "template" and style in captions.STYLES:
             scene.captions = sc.caption_preset(style, y=scene.captions.y)
-    used, note = sc.resolve_template(scene.template, ctx.has_cam)
+    used, note = sc.resolve_template(scene.template, ctx.has_cam, ctx.cam_kind)
     if used != scene.template:
         scene = sc.switch_template(scene, used, ctx)
     return scene, note

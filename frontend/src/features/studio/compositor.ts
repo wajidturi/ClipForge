@@ -13,6 +13,10 @@ import {
   family,
   frameCanvas,
   panels,
+  camList,
+  camTiles,
+  CAM_MAX_GROW,
+  hideRects,
   renderImageLayer,
   renderTextLayer,
   speedLines,
@@ -238,6 +242,39 @@ export class Compositor {
     this.kw = new Set(m.keywords.map(norm).filter(Boolean))
   }
 
+  /** Like scene_render.hide_cams: blur the facecam overlays inside the gameplay when
+   *  the cams have their own panel. `at` maps source px to canvas px. */
+  private hideCams(
+    scene: Scene,
+    cut: Cut,
+    at: (sx: number, sy: number) => [number, number],
+    kx: number,
+    ky: number,
+    filter: string,
+  ) {
+    const ctx = this.ctx
+    if (!ctx || cut.cam_kind !== 'overlay' || !panels(scene).cam) return
+    const v = this.video
+    const f = (v.videoWidth || cut.src_w) / cut.src_w
+    const cams = cut.cams?.length ? cut.cams : cut.cam ? [cut.cam] : []
+    for (const [x, y, w, h] of hideRects(cams, cut.src_w, cut.src_h) as [
+      number,
+      number,
+      number,
+      number,
+    ][]) {
+      const [dx, dy] = at(x, y)
+      const r = Math.max(2, Math.min(20, Math.floor(w / 8), Math.floor(h / 8))) * kx
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(dx, dy, w * kx, h * ky)
+      ctx.clip()
+      ctx.filter = `${filter === 'none' ? '' : filter} blur(${r.toFixed(1)}px) brightness(0.92)`
+      ctx.drawImage(v, x * f, y * f, w * f, h * f, dx, dy, w * kx, h * ky)
+      ctx.restore()
+    }
+  }
+
   private gameKeys(rect: Rect, cw: number): Key[] {
     const m = this.model!
     const k = `${rect.w}x${rect.h}:${cw}`
@@ -356,13 +393,10 @@ export class Compositor {
         )
         ctx.filter = filter
         const fs = Math.min(g.w / cut.src_w, g.h / cut.src_h)
-        ctx.drawImage(
-          v,
-          g.x + (g.w - cut.src_w * fs) / 2,
-          g.y + (g.h - cut.src_h * fs) / 2,
-          cut.src_w * fs,
-          cut.src_h * fs,
-        )
+        const ox = g.x + (g.w - cut.src_w * fs) / 2
+        const oy = g.y + (g.h - cut.src_h * fs) / 2
+        ctx.drawImage(v, ox, oy, cut.src_w * fs, cut.src_h * fs)
+        this.hideCams(scene, cut, (sx, sy) => [ox + sx * fs, oy + sy * fs], fs, fs, filter)
       } else {
         const ar = g.w / g.h
         let ch = cut.src_h
@@ -374,11 +408,23 @@ export class Compositor {
         const x = xAt(this.gameKeys(g, cw), t) * cut.src_w
         const y = Math.floor((cut.src_h - ch) / 2)
         ctx.drawImage(v, x * f, y * f, cw * f, ch * f, g.x, g.y, g.w, g.h)
+        const kx = g.w / cw
+        const ky = g.h / ch
+        this.hideCams(
+          scene,
+          cut,
+          (sx, sy) => [g.x + (sx - x) * kx, g.y + (sy - y) * ky],
+          kx,
+          ky,
+          filter,
+        )
       }
       ctx.restore()
-      if (p.cam && cut.cam) {
-        const r = p.cam
-        const [x, y, cw, ch] = coverCrop(cut.cam, r.w / r.h, cut.src_w, cut.src_h)
+      const cams = p.cam ? camList(cut, scene.template) : []
+      const tiles = p.cam ? camTiles(p.cam, cams.length) : []
+      cams.forEach((cam, i) => {
+        const r = tiles[i]!
+        const [x, y, cw, ch] = coverCrop(cam, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
         ctx.save()
         ctx.filter = filter
         if (scene.template === 'floating_facecam') {
@@ -391,7 +437,7 @@ export class Compositor {
         }
         ctx.drawImage(v, x * f, y * f, cw * f, ch * f, r.x, r.y, r.w, r.h)
         ctx.restore()
-      }
+      })
     }
 
     const frame = this.frameImage(scene)

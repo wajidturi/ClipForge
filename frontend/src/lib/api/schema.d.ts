@@ -1180,6 +1180,24 @@ export interface components {
       duration: number
       /** Cam */
       cam: number[] | null
+      /**
+       * Cams
+       * @description facecam panel boxes, left to right (x, y, w, h)
+       */
+      cams?: number[][]
+      /**
+       * Primary
+       * @description index in cams of the main person (floating bubble)
+       * @default 0
+       */
+      primary?: number
+      /**
+       * Cam Kind
+       * @description overlay = streamer facecams, camera = people on the main camera, action = nobody found (a close-up of the action)
+       * @default overlay
+       * @enum {string}
+       */
+      cam_kind?: 'overlay' | 'camera' | 'action'
       /** Targets */
       targets: [number, number | null][]
       /** Cuts */
