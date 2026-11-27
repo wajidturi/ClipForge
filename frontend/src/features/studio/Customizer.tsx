@@ -116,6 +116,7 @@ export function Customizer({ short }: { short: ShortDetail }) {
       fonts={opts.data.fonts}
       templates={opts.data.templates}
       presets={opts.data.caption_presets as Edit['presets']}
+      backgrounds={opts.data.cam_backgrounds ?? []}
     />
   )
 }
@@ -126,12 +127,14 @@ function Editor({
   fonts,
   templates,
   presets,
+  backgrounds,
 }: {
   short: ShortDetail
   data: StudioData
   fonts: Edit['fonts']
   templates: Parameters<typeof TemplatePicker>[0]['templates']
   presets: Edit['presets']
+  backgrounds: Edit['backgrounds']
 }) {
   const { t } = useTranslation()
   const cut = data.cut!
@@ -148,6 +151,7 @@ function Editor({
   const wide = useWide()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const matteRef = useRef<HTMLVideoElement>(null)
   const selRef = useRef<HTMLDivElement>(null)
   const comp = useRef<Compositor | null>(null)
   const imagesRef = useRef(new Map<string, HTMLImageElement>())
@@ -183,6 +187,8 @@ function Editor({
   useEffect(() => {
     if (!canvasRef.current || !videoRef.current) return
     comp.current = new Compositor(canvasRef.current, videoRef.current, imagesRef.current)
+    comp.current.setMatte(matteRef.current)
+    comp.current.onAsset = () => setImgTick((n) => n + 1)
   }, [])
 
   useEffect(() => {
@@ -271,6 +277,8 @@ function Editor({
     select: setSelected,
     fonts,
     presets,
+    backgrounds,
+    cutOut: !!cut.matte_asset_id && (cut.cam_kind === 'overlay' || cut.cam_kind === 'camera'),
   }
   const layer = scene.layers.find((l) => l.id === selected) ?? null
 
@@ -586,6 +594,19 @@ function Editor({
               onEnded={() => setPlaying(false)}
               className="hidden"
             />
+            {cut.matte_asset_id && (
+              <video
+                ref={matteRef}
+                src={mediaUrl(cut.matte_asset_id)}
+                preload="auto"
+                playsInline
+                muted
+                onLoadedData={draw}
+                onSeeked={draw}
+                className="hidden"
+                aria-hidden
+              />
+            )}
             <canvas
               ref={canvasRef}
               className={cn('size-full', view !== 'live' && 'hidden')}

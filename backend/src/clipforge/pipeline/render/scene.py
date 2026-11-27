@@ -87,12 +87,43 @@ class Divider(_M):
     tilt: float = Field(4, ge=-12, le=12)  # degrees; positive rises to the right
 
 
+CamBackground = Literal[
+    "original",
+    "blur_soft",
+    "blur_strong",
+    "neon_purple",
+    "cyber_blue",
+    "sunset",
+    "midnight",
+    "studio_gray",
+    "red_rush",
+    "aurora",
+    "gold_lux",
+]
+CAM_BACKGROUNDS: dict[str, str] = {  # id -> name, in picker order
+    "original": "Original",
+    "blur_soft": "Soft blur",
+    "blur_strong": "Strong blur",
+    "neon_purple": "Neon purple",
+    "cyber_blue": "Cyber blue",
+    "sunset": "Sunset",
+    "midnight": "Midnight",
+    "studio_gray": "Studio",
+    "red_rush": "Red rush",
+    "aurora": "Aurora",
+    "gold_lux": "Gold",
+}
+BLUR_BACKGROUNDS = {"blur_soft": 10, "blur_strong": 26}  # box blur radius at 1080 wide
+
+
 class Regions(_M):
     split: float = Field(0.42, ge=0.25, le=0.75)  # height share of the top panel
     frame: Frame = Field(default_factory=Frame)
     cam: Cam = Field(default_factory=Cam)
     divider: Divider = Field(default_factory=Divider)
     fit: Literal["fill", "blur"] = "fill"  # full-screen templates: crop or whole picture
+    cam_bg: CamBackground = "blur_soft"  # behind the streamer (needs the person cut-out)
+    cam_enhance: bool = True  # denoise + sharpen + clarity on the (small, upscaled) facecam
 
 
 class Captions(_M):
@@ -122,7 +153,7 @@ class Effects(_M):
     speed_lines: bool = False
     vignette: bool = False
     letterbox: bool = False
-    color: Literal["none", "vivid", "cinematic"] = "vivid"
+    color: Literal["none", "vivid", "hdr", "cinematic"] = "hdr"
     moments: list[float] = Field(default_factory=list, max_length=12)  # effect times (s)
 
 

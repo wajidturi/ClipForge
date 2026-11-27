@@ -55,14 +55,16 @@ def _words(text: str, n: int, from_end: bool = False) -> str:
     return ("… " + " ".join(w[-n:])) if from_end else (" ".join(w[:n]) + " …")
 
 
-def window_score(sents: list[Sent], *, min_talk: float, target: float | None = None) -> float:
+def window_score(
+    sents: list[Sent], *, min_talk: float, target: float | None = None, quiet_ok: bool = False
+) -> float:
     """0..100. Peak heat dominates; build-up, payoff position and speech amount adjust.
     With a `target` length, windows near it are preferred (otherwise the mean heat makes
     the shortest window around a peak win, which is right for classic Shorts only)."""
     heats = [s.heat for s in sents]
     peak = max(heats)
     if peak <= 0:
-        return 0.0
+        return _quiet_score(sents, min_talk=min_talk, target=target) if quiet_ok else 0.0
     mean = sum(heats) / len(heats)
     score = 0.65 * peak + 0.35 * mean
     i_peak = heats.index(peak)
@@ -83,7 +85,25 @@ def window_score(sents: list[Sent], *, min_talk: float, target: float | None = N
     # the payoff should not be the very last half second of speech
     if i_peak == len(sents) - 1 and len(sents) > 1:
         score -= 2
-    return max(0.0, min(100.0, score))
+    score = max(0.0, min(100.0, score))
+    if quiet_ok and score <= 0:
+        return _quiet_score(sents, min_talk=min_talk, target=target)
+    return score
+
+
+def _quiet_score(sents: list[Sent], *, min_talk: float, target: float | None) -> float:
+    """A part the user chose themselves may be calm: rank its windows by speech alone,
+    always above zero (so they count) and below windows with a real peak."""
+    span = sents[-1].end - sents[0].start
+    talk = talk_time(sents)
+    score = 8.0 + min(8.0, talk / 5)
+    if BAD_OPENERS.match(sents[0].text):
+        score -= 3
+    if target:
+        score -= 4 * abs(span - target) / target
+    if talk < min_talk:
+        score -= 5
+    return max(0.5, score)
 
 
 def build_candidates(
@@ -96,6 +116,7 @@ def build_candidates(
     k: int = 30,
     exclude: list[tuple[float, float]] | None = None,
     start_id: int = 1,
+    quiet_ok: bool = False,
 ) -> list[Candidate]:
     """`sents` must belong to one source, sorted by time."""
     exclude = exclude or []
@@ -108,7 +129,7 @@ def build_candidates(
             if span < min_len:
                 continue
             win = sents[i : j + 1]
-            s = window_score(win, min_talk=min_talk, target=target)
+            s = window_score(win, min_talk=min_talk, target=target, quiet_ok=quiet_ok)
             if s > 0:
                 scored.append((s, i, j))
     scored.sort(key=lambda x: (-x[0], x[1]))

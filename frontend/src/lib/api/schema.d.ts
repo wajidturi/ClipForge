@@ -433,6 +433,26 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/v1/render/backgrounds/{bg_id}.png': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Cam Background Png
+     * @description A facecam background picture at the given size: the same one the renderer uses.
+     */
+    get: operations['cam_background_png_api_v1_render_backgrounds__bg_id__png_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/v1/render/options': {
     parameters: {
       query?: never
@@ -1192,6 +1212,21 @@ export interface components {
        */
       primary?: number
       /**
+       * Matte Asset Id
+       * @description person cut-out video (white = person), same timing as the preview
+       */
+      matte_asset_id?: string | null
+      /**
+       * Matte W
+       * @default 0
+       */
+      matte_w?: number
+      /**
+       * Matte H
+       * @default 0
+       */
+      matte_h?: number
+      /**
        * Cam Kind
        * @description overlay = streamer facecams, camera = people on the main camera, action = nobody found (a close-up of the action)
        * @default overlay
@@ -1333,10 +1368,10 @@ export interface components {
       letterbox?: boolean
       /**
        * Color
-       * @default vivid
+       * @default hdr
        * @enum {string}
        */
-      color?: 'none' | 'vivid' | 'cinematic'
+      color?: 'none' | 'vivid' | 'hdr' | 'cinematic'
       /** Moments */
       moments?: number[]
     }
@@ -1736,6 +1771,28 @@ export interface components {
        * @enum {string}
        */
       fit?: 'fill' | 'blur'
+      /**
+       * Cam Bg
+       * @default blur_soft
+       * @enum {string}
+       */
+      cam_bg?:
+        | 'original'
+        | 'blur_soft'
+        | 'blur_strong'
+        | 'neon_purple'
+        | 'cyber_blue'
+        | 'sunset'
+        | 'midnight'
+        | 'studio_gray'
+        | 'red_rush'
+        | 'aurora'
+        | 'gold_lux'
+      /**
+       * Cam Enhance
+       * @default true
+       */
+      cam_enhance?: boolean
     }
     /** RenderOptions */
     RenderOptions: {
@@ -1751,6 +1808,11 @@ export interface components {
       }
       /** Aspects */
       aspects: components['schemas']['OptionOut'][]
+      /**
+       * Cam Backgrounds
+       * @description backgrounds behind the cut-out streamer
+       */
+      cam_backgrounds?: components['schemas']['OptionOut'][]
       /** Encoder */
       encoder: string
     }
@@ -1842,6 +1904,18 @@ export interface components {
        * @enum {string}
        */
       length?: 'short' | 'medium' | 'long'
+      /**
+       * Start
+       * @description pick only from here on
+       * @example 5:00
+       */
+      start?: string | null
+      /**
+       * End
+       * @description pick only up to here
+       * @example 11:00
+       */
+      end?: string | null
     }
     /** RunDetail */
     RunDetail: {
@@ -3508,6 +3582,38 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['AIStatusOut']
+        }
+      }
+    }
+  }
+  cam_background_png_api_v1_render_backgrounds__bg_id__png_get: {
+    parameters: {
+      query?: {
+        w?: number
+        h?: number
+      }
+      header?: never
+      path: {
+        bg_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

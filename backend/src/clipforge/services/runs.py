@@ -43,6 +43,7 @@ from clipforge.db.models import (
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs import queue
 from clipforge.jobs.registry import JobContext, PermanentJobError
+from clipforge.pipeline.ingest.timewin import InvalidTimeError, make_window
 from clipforge.pipeline.selection import Candidate, Pick, Sent
 from clipforge.pipeline.selection.ai_picker import ai_picks
 from clipforge.pipeline.selection.callbacks import find_callbacks
@@ -72,15 +73,27 @@ def create_run(
     ai_model: str | None = None,
     render: dict[str, Any] | None = None,
     length: LengthPreset = "short",
+    start: str | None = None,
+    end: str | None = None,
 ) -> tuple[Run, Job]:
     if not source_ids:
         raise RunInputError("choose at least one source")
+    try:
+        win = make_window(start, end)
+    except InvalidTimeError as e:
+        raise RunInputError(str(e)) from None
     srcs = db.scalars(select(Source).where(Source.id.in_(source_ids))).all()
     if len(srcs) != len(set(source_ids)):
         raise RunInputError("some sources do not exist")
     not_ready = [s.title or s.url for s in srcs if s.status != SourceStatus.ready]
     if not_ready:
         raise RunInputError(f"not analysed yet: {', '.join(not_ready[:3])}")
+    if win is not None:
+        outside = [s.title or s.url for s in srcs if not _range_overlaps(s, win.start_s, win.end_s)]
+        if outside:
+            raise RunInputError(
+                f"the time range is outside the analysed part of: {', '.join(outside[:3])}"
+            )
     settings = settings_store.effective(db)
     uses_ai = pick_mode not in ("free", "whole") and settings.ai_provider != "none"
     run = Run(
@@ -91,6 +104,7 @@ def create_run(
             "topic": topic,
             "render": render,
             "length": length,
+            "range": [win.start_s, win.end_s] if win else None,
         },
         status=RunStatus.queued,
         ai_provider=settings.ai_provider if uses_ai else None,
@@ -116,6 +130,21 @@ def create_run(
     )
     db.commit()
     return run, job
+
+
+def _range_overlaps(src: Source, a: float, b: float | None) -> bool:
+    """Does [a, b) touch the analysed part of the source?"""
+    lo = src.window_start_s or 0.0
+    hi = src.window_end_s or src.duration_s
+    return (hi is None or a < hi) and (b is None or b > lo)
+
+
+def in_range(lst: list[Sent], rng: list[float | None] | None) -> list[Sent]:
+    """Only the sentences inside the run's time range (all when there is none)."""
+    if not rng:
+        return lst
+    a, b = float(rng[0] or 0.0), rng[1]
+    return [x for x in lst if x.start >= a and (b is None or x.end <= float(b))]
 
 
 def _tag_types(tags: list[Any]) -> tuple[str, ...]:
@@ -210,7 +239,8 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         params = dict(run.params)
         source_ids = [uuid.UUID(x) for x in params["source_ids"]]
         srcs = {str(x.id): x for x in s.scalars(select(Source).where(Source.id.in_(source_ids)))}
-        sents = {str(sid): load_sentences(s, sid) for sid in source_ids}
+        rng = params.get("range")
+        sents = {str(sid): in_range(load_sentences(s, sid), rng) for sid in source_ids}
         used = used_ranges(s, source_ids)
         ai_model = run.ai_model
         run_uses_ai = run.ai_provider is not None
@@ -229,7 +259,8 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     pool: list[Candidate] = []
     for sid, lst in sents.items():
         if not lst:
-            warnings.append(f"{srcs[sid].title or sid}: no transcript sentences")
+            what = "in the chosen time range" if rng else ""
+            warnings.append(f"{srcs[sid].title or sid}: no transcript sentences {what}".strip())
             continue
         pool += build_candidates(
             lst,
@@ -239,6 +270,7 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
             max_len=lengths.max_len,
             min_talk=lengths.min_talk,
             target=lengths.target,
+            quiet_ok=bool(rng),  # a range the user chose: calm parts are fine too
         )
     pool.sort(key=lambda c: -c.score)
     pool = pool[:k]
@@ -249,9 +281,15 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
             run_id,
             status=RunStatus.failed,
             finished_at=utcnow(),
-            error="No usable moments: the sources have too little speech or are all used already.",
+            error=(
+                "No usable moments in the chosen time range: try a longer range."
+                if rng
+                else "No usable moments: the sources have too little speech or are all used "
+                "already."
+            ),
         )
-        raise PermanentJobError("no candidate moments found")
+        where = " in the chosen time range (try a longer range)" if rng else ""
+        raise PermanentJobError(f"no candidate moments found{where}")
     ctx.check_cancelled()
 
     if mode == "whole":

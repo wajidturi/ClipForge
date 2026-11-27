@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, Film, Loader2, Sparkles, Wand2, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Clock, Film, Loader2, Sparkles, Wand2, XCircle } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
@@ -41,6 +41,8 @@ export function Create() {
   const [length, setLength] = useState<Length>('short')
   const [template, setTemplate] = useState<TemplateChoice>('auto')
   const [autoRender, setAutoRender] = useState(true)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const opts = useRenderOptions()
 
   const toggle = (id: string) =>
@@ -56,6 +58,8 @@ export function Create() {
         topic: topic.trim() || null,
         length,
         render: autoRender ? { template, aspects: [] } : null,
+        start: from.trim() || null,
+        end: to.trim() || null,
       },
       { onSuccess: (run) => navigate(`/runs/${run.id}`) },
     )
@@ -203,6 +207,41 @@ export function Create() {
               />
             </label>
           </div>
+          <fieldset className="text-sm">
+            <legend className="mb-1 flex items-center gap-2 font-medium">
+              <Clock size={14} aria-hidden /> {t('create.range')}
+            </legend>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label={t('create.rangeFrom')}
+                placeholder={t('create.rangeFromPh')}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
+              />
+              <span className="text-muted">–</span>
+              <input
+                aria-label={t('create.rangeTo')}
+                placeholder={t('create.rangeToPh')}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
+              />
+              {(from || to) && (
+                <button
+                  type="button"
+                  className="text-xs text-accent hover:underline"
+                  onClick={() => {
+                    setFrom('')
+                    setTo('')
+                  }}
+                >
+                  {t('create.rangeClear')}
+                </button>
+              )}
+            </div>
+            <span className="mt-1 block text-xs text-muted">{t('create.rangeHelp')}</span>
+          </fieldset>
           <div className="space-y-3 border-t border-border pt-5">
             <label className="flex items-center gap-3 text-sm font-medium">
               <input

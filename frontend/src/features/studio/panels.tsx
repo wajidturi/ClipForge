@@ -16,7 +16,7 @@ import {
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui'
-import { mediaUrl, type Layer } from '@/lib/api/client'
+import { mediaUrl, type Layer, type Regions } from '@/lib/api/client'
 import { useDeleteImage, useImages, useUploadImage } from '@/lib/studio'
 import { cn, formatClock } from '@/lib/utils'
 import { ColorField, Row, Section, Segmented, Select, Slider, Toggle } from './controls'
@@ -43,6 +43,26 @@ function useLayerName() {
     l.name ||
     (l.role ? t(`cz.role.${l.role}`, { defaultValue: '' }) : '') ||
     (l.kind === 'image' ? t('cz.role.logo') : l.text.slice(0, 24) || t('cz.role.user'))
+}
+
+const SWATCH: Record<string, string> = {
+  original: 'linear-gradient(135deg,#6b7280,#9ca3af)',
+  blur_soft: 'radial-gradient(circle at 50% 40%,#d1d5db,#6b7280)',
+  blur_strong: 'radial-gradient(circle at 50% 40%,#9ca3af,#374151)',
+}
+
+/** Small preview of a facecam background (pictures come from the renderer). */
+function BgSwatch({ id }: { id: string }) {
+  const pic = !(id in SWATCH)
+  return (
+    <span
+      className="block h-8 w-full rounded-sm bg-cover bg-center"
+      style={{
+        backgroundImage: pic ? `url(/api/v1/render/backgrounds/${id}.png?w=96&h=64)` : SWATCH[id],
+        filter: id.startsWith('blur') ? 'blur(1px)' : undefined,
+      }}
+    />
+  )
 }
 
 // ------------------------------------------------------------------ template
@@ -133,6 +153,47 @@ export function TemplatePanel({ e }: { e: Edit }) {
               onCommit={e.commit}
             />
           </Row>
+        </Section>
+      )}
+      {(stacked || s.template === 'floating_facecam') && (
+        <Section title={t('cz.tpl.camLook')}>
+          {e.cutOut ? (
+            <div
+              className="grid grid-cols-4 gap-1.5"
+              role="radiogroup"
+              aria-label={t('cz.tpl.camBg')}
+            >
+              {e.backgrounds.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={r.cam_bg === b.id}
+                  title={b.label}
+                  onClick={() => setRegions(e, { cam_bg: b.id as Regions['cam_bg'] })}
+                  className={cn(
+                    'flex flex-col items-center gap-1 rounded-md border p-1 text-[10px] leading-tight transition',
+                    r.cam_bg === b.id
+                      ? 'border-accent bg-accent/10'
+                      : 'border-border hover:bg-surface-2',
+                  )}
+                >
+                  <BgSwatch id={b.id} />
+                  <span className="w-full truncate text-center">{b.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted">{t('cz.tpl.camBgNone')}</p>
+          )}
+          <Row label={t('cz.tpl.camEnhance')}>
+            <Toggle
+              label={t('cz.tpl.camEnhance')}
+              checked={r.cam_enhance}
+              onChange={(v) => setRegions(e, { cam_enhance: v })}
+            />
+          </Row>
+          <p className="text-[11px] text-muted">{t('cz.tpl.camEnhanceHelp')}</p>
         </Section>
       )}
       {s.template === 'dual_vision' && (
@@ -768,7 +829,7 @@ export function EffectsPanel({ e }: { e: Edit }) {
         <Segmented
           label={t('cz.fx.color')}
           value={fx.color}
-          options={(['none', 'vivid', 'cinematic'] as const).map((id) => ({
+          options={(['none', 'vivid', 'hdr', 'cinematic'] as const).map((id) => ({
             id,
             label: t(`cz.fx.grade.${id}`),
           }))}

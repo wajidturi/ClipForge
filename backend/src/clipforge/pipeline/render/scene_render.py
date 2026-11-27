@@ -24,8 +24,10 @@ from clipforge.core import ffmpeg
 from clipforge.pipeline.render import captions, compose, raster
 from clipforge.pipeline.render.edl import CaptionWord
 from clipforge.pipeline.render.effects import audio_chain, zoom_expression
+from clipforge.pipeline.render.matte import matte_crop
 from clipforge.pipeline.render.reframe import Box, track_targets, x_expression
 from clipforge.pipeline.render.scene import (
+    BLUR_BACKGROUNDS,
     CAM_MAX_GROW,
     H,
     Layer,
@@ -62,6 +64,8 @@ class CutPlan:
     extra: dict[str, Any] = field(default_factory=dict)
     cams: list[Box] = field(default_factory=list)  # every facecam / person, left to right
     cam_kind: str = "overlay"
+    matte: Path | None = None  # person cut-out video (pipeline/render/matte.py)
+    matte_size: tuple[int, int] = (0, 0)
 
     def cam_list(self, template: str) -> list[Box]:
         """What the facecam panel shows: everyone side by side in stacked templates,
@@ -148,6 +152,22 @@ def _game_chain(plan: CutPlan, rect: Rect, fit: str, label: str, src: str) -> li
     return [f"{src}crop={cw}:{ch}:'{x}':{y},scale={rect.w}:{rect.h},setsar=1[{label}]"]
 
 
+# HDR look (Instagram-style pop): more local contrast, richer colour, a touch of clarity.
+# Studio preview approximation: compositor.ts COLOR_FILTERS.hdr
+HDR = "eq=contrast=1.1:saturation=1.3:gamma=0.96:brightness=0.015,unsharp=7:7:0.55:5:5:0"
+
+
+def cam_look(w: int, h: int, enhance: bool) -> str:
+    """Facecam crop -> tile: the cam is small in the source and gets enlarged a lot, so
+    remove noise first, scale with a sharp filter, then restore detail and contrast."""
+    if not enhance:
+        return f"scale={w}:{h},setsar=1"
+    return (
+        f"hqdn3d=1.5:1.5:6:6,scale={w}:{h}:flags=lanczos,setsar=1,"
+        "unsharp=5:5:0.9:3:3:0,unsharp=11:11:0.35:5:5:0,eq=contrast=1.06:saturation=1.08"
+    )
+
+
 HIDE_GROW = 1.15  # cam boxes come from the face, so cover a little more of the overlay
 
 
@@ -194,9 +214,12 @@ def build_graph(
     d = plan.duration
     inputs: list[list[str]] = []
 
-    def add_image(path: Path) -> str:
-        inputs.append(["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.3f}", "-i", str(path)])
+    def add_input(args: list[str]) -> str:
+        inputs.append(args)
         return f"[{len(inputs)}:v]"
+
+    def add_image(path: Path) -> str:
+        return add_input(["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.3f}", "-i", str(path)])
 
     p = panels(scene)
     fit = scene.regions.fit if scene.template in ("floating_facecam", "cinematic") else "fill"
@@ -228,11 +251,45 @@ def build_graph(
         g.append(f"color=c=0x{bg}:s={W}x{H}:r={FPS}:d={d:.3f}[canvas]")
         g.append(f"[canvas][game]overlay={p['game'].x}:{p['game'].y}:shortest=1[b0]")
         base = "[b0]"
+    reg = scene.regions
+    swap = (
+        reg.cam_bg != "original"
+        and plan.matte is not None
+        and plan.cam_kind in ("overlay", "camera")
+        and bool(cams)
+    )
+    if swap:
+        assert plan.matte is not None
+        mt = add_input(["-i", str(plan.matte)])
+        labels = "".join(f"[mt{i}]" for i in range(len(cams)))
+        g.append(f"{mt}fps={FPS},format=gray,split={len(cams)}{labels}")
     for i, (cam, r) in enumerate(zip(cams, tiles, strict=True)):
-        x, y, cw, ch = cover_crop(
+        rect = cover_crop(
             (cam.x, cam.y, cam.w, cam.h), r.w / r.h, plan.src_w, plan.src_h, CAM_MAX_GROW
         )
-        g.append(f"[sc{i}]crop={cw}:{ch}:{x}:{y},scale={r.w}:{r.h},setsar=1[camraw{i}]")
+        x, y, cw, ch = rect
+        g.append(f"[sc{i}]crop={cw}:{ch}:{x}:{y},{cam_look(r.w, r.h, reg.cam_enhance)}[cc{i}]")
+        if swap:
+            qx, qy, qw, qh = matte_crop(rect, plan.src_w, plan.src_h, *plan.matte_size)
+            g.append(
+                f"[mt{i}]crop={qw}:{qh}:{qx}:{qy},scale={r.w}:{r.h}:flags=bilinear,"
+                f"boxblur=1:1[mk{i}]"
+            )
+            if reg.cam_bg in BLUR_BACKGROUNDS:
+                rad = max(2, min(BLUR_BACKGROUNDS[reg.cam_bg] * r.w // W, r.w // 8, r.h // 8))
+                g.append(f"[cc{i}]split[cp{i}][cb{i}]")
+                g.append(f"[cb{i}]boxblur={rad}:3,eq=brightness=-0.03[bg{i}]")
+                person = f"[cp{i}]"
+            else:
+                pic = workdir / f"cam_bg_{reg.cam_bg}_{r.w}x{r.h}.png"
+                raster.cam_background(reg.cam_bg, r.w, r.h).save(pic)
+                g.append(f"{add_image(pic)}format=yuv420p,setsar=1[bg{i}]")
+                person = f"[cc{i}]"
+            g.append(f"{person}format=rgba[cr{i}]")
+            g.append(f"[cr{i}][mk{i}]alphamerge[pa{i}]")
+            g.append(f"[bg{i}][pa{i}]overlay=0:0:shortest=1,format=yuv420p[camraw{i}]")
+        else:
+            g.append(f"[cc{i}]copy[camraw{i}]")
         if scene.template == "floating_facecam":
             mask = workdir / "cam_mask.png"
             raster.cam_mask(r.w, scene.regions.cam.shape).save(mask)
@@ -249,6 +306,8 @@ def build_graph(
     chain = []
     if fx.color == "vivid":
         chain.append("eq=saturation=1.22:contrast=1.05")
+    elif fx.color == "hdr":
+        chain.append(HDR)
     elif fx.color == "cinematic":
         chain.append("eq=saturation=1.1:contrast=1.12:brightness=-0.02")
         chain.append("colorbalance=rs=-0.04:bs=0.06:rh=0.06:bh=-0.05")

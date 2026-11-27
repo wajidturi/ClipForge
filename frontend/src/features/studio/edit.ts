@@ -12,6 +12,9 @@ export type Edit = {
   select: (id: string | null) => void
   fonts: FontInfo[]
   presets: Record<string, Captions>
+  /** facecam backgrounds (id, label) and whether this cut has a person cut-out */
+  backgrounds: { id: string; label: string }[]
+  cutOut: boolean
 }
 
 export function setRegions(e: Edit, patch: Partial<Regions>, transient = false) {

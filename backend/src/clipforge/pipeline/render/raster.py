@@ -14,6 +14,7 @@ constants, same shape points), so the canvas preview matches the export:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -438,4 +439,126 @@ def speed_lines() -> Image.Image:
             fill=(255, 255, 255, 150),
             width=wdt,
         )
+    return img
+
+
+# ------------------------------------------------------------------ facecam backgrounds
+def _hex(c: str) -> tuple[int, int, int]:
+    return int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
+
+
+def _vgrad(w: int, h: int, stops: list[tuple[float, str]]) -> np.ndarray:
+    """Vertical gradient through colour stops (position 0..1 from the top)."""
+    ys = np.linspace(0, 1, h)[:, None]
+    pos = [p for p, _ in stops]
+    out = np.zeros((h, 1, 3), np.float32)
+    for ch in range(3):
+        vals = [_hex(c)[ch] for _, c in stops]
+        out[:, :, ch] = np.interp(ys, pos, vals)
+    return np.repeat(out, w, axis=1)
+
+
+def _glow(img: Image.Image, draw: Callable[[ImageDraw.ImageDraw], None], blur: float) -> None:
+    """Draw shapes on a layer, blur it and add it on top (light, not paint)."""
+    layer = Image.new("RGB", img.size, (0, 0, 0))
+    draw(ImageDraw.Draw(layer))
+    layer = layer.filter(ImageFilter.GaussianBlur(blur))
+    a = np.asarray(img, np.float32) + np.asarray(layer, np.float32)
+    img.paste(Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)))
+
+
+@lru_cache(maxsize=64)
+def cam_background(bg: str, w: int, h: int) -> Image.Image:
+    """A picture behind the cut-out streamer. Drawn, not loaded: no image files, any
+    size, same result every time (the studio preview fetches the same PNG)."""
+    w, h = max(2, w), max(2, h)
+    s = min(w, h)
+    rng = np.random.default_rng(7)
+
+    def base(stops: list[tuple[float, str]]) -> Image.Image:
+        return Image.fromarray(_vgrad(w, h, stops).astype(np.uint8))
+
+    if bg == "neon_purple":
+        img = base([(0, "#12052E"), (0.6, "#3B0F78"), (1, "#7C3AED")])
+
+        def streaks(d: ImageDraw.ImageDraw) -> None:
+            for i, c in enumerate(("#22D3EE", "#F472B6", "#A78BFA")):
+                x0 = w * (0.1 + 0.35 * i)
+                d.line([(x0, h), (x0 + w * 0.5, 0)], fill=_hex(c), width=max(2, s // 40))
+
+        _glow(img, streaks, s / 30)
+    elif bg == "cyber_blue":
+        img = base([(0, "#020617"), (0.55, "#0B1E4A"), (1, "#0E4A7A")])
+
+        def grid(d: ImageDraw.ImageDraw) -> None:
+            hy = h * 0.55  # horizon
+            for i in range(-8, 9):  # lines to the vanishing point
+                d.line([(w / 2, hy), (w / 2 + i * w / 4, h)], fill=(34, 211, 238), width=2)
+            for k in range(1, 8):
+                y = hy + (h - hy) * (k / 8) ** 1.8
+                d.line([(0, y), (w, y)], fill=(34, 211, 238), width=2)
+            d.line([(0, hy), (w, hy)], fill=(125, 249, 255), width=max(2, s // 120))
+
+        _glow(img, grid, 1.2)
+    elif bg == "sunset":
+        img = base([(0, "#2E1065"), (0.45, "#DB2777"), (0.75, "#F97316"), (1, "#FDBA74")])
+
+        def sun(d: ImageDraw.ImageDraw) -> None:
+            r = s * 0.28
+            d.ellipse([w / 2 - r, h * 0.62 - r, w / 2 + r, h * 0.62 + r], fill=(120, 70, 20))
+
+        _glow(img, sun, s / 14)
+    elif bg == "midnight":
+        img = base([(0, "#030712"), (0.7, "#0F1B44"), (1, "#1E3A8A")])
+
+        def stars(d: ImageDraw.ImageDraw) -> None:
+            for _ in range(int(w * h / 2500)):
+                x, y = rng.uniform(0, w), rng.uniform(0, h * 0.85)
+                r = rng.uniform(0.6, 2.0) * s / 600
+                v = int(rng.uniform(120, 255))
+                d.ellipse([x - r, y - r, x + r, y + r], fill=(v, v, v))
+
+        _glow(img, stars, 0.6)
+    elif bg == "studio_gray":
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        d = np.hypot((xx - w / 2) / w, (yy - h * 0.45) / h)
+        v = np.clip(150 - d * 190, 28, 150)
+        img = Image.fromarray(np.dstack([v, v, v * 1.04]).clip(0, 255).astype(np.uint8))
+    elif bg == "red_rush":
+        img = base([(0, "#0A0A0A"), (0.6, "#450A0A"), (1, "#B91C1C")])
+
+        def stripes(d: ImageDraw.ImageDraw) -> None:
+            for i in range(9):
+                x = w * (i / 6 - 0.4)
+                d.polygon(
+                    [(x, h), (x + w * 0.05, h), (x + w * 0.75, 0), (x + w * 0.7, 0)],
+                    fill=(90, 8, 8),
+                )
+
+        _glow(img, stripes, s / 80)
+    elif bg == "aurora":
+        img = base([(0, "#04121A"), (1, "#0B2530")])
+
+        def blobs(d: ImageDraw.ImageDraw) -> None:
+            for cx, cy, rx, ry, c in (
+                (0.25, 0.3, 0.45, 0.18, (16, 160, 110)),
+                (0.7, 0.45, 0.4, 0.16, (110, 40, 170)),
+                (0.45, 0.65, 0.5, 0.14, (20, 120, 160)),
+            ):
+                d.ellipse([w * (cx - rx), h * (cy - ry), w * (cx + rx), h * (cy + ry)], fill=c)
+
+        _glow(img, blobs, s / 7)
+    elif bg == "gold_lux":
+        img = base([(0, "#0C0A09"), (1, "#292016")])
+
+        def bokeh(d: ImageDraw.ImageDraw) -> None:
+            for _ in range(28):
+                x, y = rng.uniform(0, w), rng.uniform(0, h)
+                r = rng.uniform(0.03, 0.09) * s
+                k = rng.uniform(0.35, 0.9)
+                d.ellipse([x - r, y - r, x + r, y + r], fill=(int(200 * k), int(150 * k), 40))
+
+        _glow(img, bokeh, s / 45)
+    else:
+        raise ValueError(f"no picture for background '{bg}'")
     return img

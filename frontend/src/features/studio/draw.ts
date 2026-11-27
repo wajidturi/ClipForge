@@ -129,6 +129,24 @@ export function coverCrop(
   return [Math.trunc(x), Math.trunc(y), even(cw), even(ch)]
 }
 
+/** Like matte.matte_crop: a source-pixel crop in matte pixels. */
+export function matteCrop(
+  rect: number[],
+  srcW: number,
+  srcH: number,
+  mw: number,
+  mh: number,
+): [number, number, number, number] {
+  const [x, y, w, h] = rect as [number, number, number, number]
+  const fx = mw / srcW
+  const fy = mh / srcH
+  const cw = Math.max(2, Math.floor(Math.trunc(w * fx) / 2) * 2)
+  const ch = Math.max(2, Math.floor(Math.trunc(h * fy) / 2) * 2)
+  const cx = Math.min(Math.max(0, Math.trunc(x * fx)), mw - cw)
+  const cy = Math.min(Math.max(0, Math.trunc(y * fy)), mh - ch)
+  return [cx, cy, cw, ch]
+}
+
 const HIDE_GROW = 1.15
 const floorEven = (v: number) => Math.max(2, Math.floor(Math.trunc(v) / 2) * 2) // compose._even
 

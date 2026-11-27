@@ -126,6 +126,8 @@ describe('Create page', () => {
     await userEvent.click(screen.getByRole('radio', { name: /deep/i }))
     await userEvent.click(screen.getByRole('radio', { name: /whole scenes/i }))
     await userEvent.type(screen.getByLabelText('Topic'), 'GTA 6')
+    await userEvent.type(screen.getByLabelText('From'), '5:00')
+    await userEvent.type(screen.getByLabelText('To'), '11:00')
     await userEvent.click(start)
     expect(await screen.findByText('KAI JUMPS THE BRIDGE')).toBeInTheDocument() // navigated to the run
     const post = api.calls.find((c) => c.method === 'POST')
@@ -136,6 +138,8 @@ describe('Create page', () => {
       topic: 'GTA 6',
       length: 'long',
       render: { template: 'cinematic', aspects: [] },
+      start: '5:00',
+      end: '11:00',
     })
   })
 })

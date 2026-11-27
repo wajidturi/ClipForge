@@ -229,3 +229,34 @@ def test_preview_strip_from_video(client: TestClient, tmp_path: Path) -> None:
     other = start(client, [seed_source()], n=1, pick_mode="free")["shorts"][0]
     assert other["has_preview"] is False
     assert client.get(f"/api/v1/shorts/{other['id']}/preview.jpg").status_code == 404
+
+
+def test_time_range_limits_where_moments_come_from(client: TestClient) -> None:
+    """Pick only from 1:30 to 4:00 of a 5-minute source."""
+    sid = seed_source()
+    run = start(client, [sid], n=2, pick_mode="free", start="1:30", end="4:00")
+    assert run["status"] == "succeeded" and run["params"]["range"] == [90.0, 240.0]
+    assert run["shorts"]
+    for short in run["shorts"]:
+        part = short["parts"][0]
+        assert part["start_s"] >= 90 and part["end_s"] <= 240
+
+
+def test_time_range_errors(client: TestClient) -> None:
+    sid = seed_source()  # 300 s long
+    bad = client.post("/api/v1/runs", json={"source_ids": [sid], "start": "11:00", "end": "5:00"})
+    assert bad.status_code == 422 and "after the start" in bad.json()["detail"]
+    late = client.post("/api/v1/runs", json={"source_ids": [sid], "start": "10:00"})
+    assert late.status_code == 422 and "outside" in late.json()["detail"]
+    nonsense = client.post("/api/v1/runs", json={"source_ids": [sid], "start": "abc"})
+    assert nonsense.status_code == 422
+
+
+def test_a_calm_range_still_gives_moments(client: TestClient) -> None:
+    """Real bug: 55:00-58:00 of a stream had no excitement peaks, so nothing was picked.
+    A range the user chose themselves is used even when it is calm."""
+    sid = seed_source()
+    run = start(client, [sid], n=1, pick_mode="free", start="0:00", end="1:20")
+    assert run["status"] == "succeeded", run["error"]
+    part = run["shorts"][0]["parts"][0]
+    assert part["end_s"] <= 80

@@ -1186,6 +1186,64 @@
         }
       }
     },
+    "/api/v1/render/backgrounds/{bg_id}.png": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Cam Background Png",
+        "description": "A facecam background picture at the given size: the same one the renderer uses.",
+        "operationId": "cam_background_png_api_v1_render_backgrounds__bg_id__png_get",
+        "parameters": [
+          {
+            "name": "bg_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Bg Id"
+            }
+          },
+          {
+            "name": "w",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1920,
+              "minimum": 16,
+              "default": 540,
+              "title": "W"
+            }
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1920,
+              "minimum": 16,
+              "default": 400,
+              "title": "H"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/render/options": {
       "get": {
         "tags": ["runs"],
@@ -2928,6 +2986,29 @@
             "description": "index in cams of the main person (floating bubble)",
             "default": 0
           },
+          "matte_asset_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matte Asset Id",
+            "description": "person cut-out video (white = person), same timing as the preview"
+          },
+          "matte_w": {
+            "type": "integer",
+            "title": "Matte W",
+            "default": 0
+          },
+          "matte_h": {
+            "type": "integer",
+            "title": "Matte H",
+            "default": 0
+          },
           "cam_kind": {
             "type": "string",
             "enum": ["overlay", "camera", "action"],
@@ -3245,9 +3326,9 @@
           },
           "color": {
             "type": "string",
-            "enum": ["none", "vivid", "cinematic"],
+            "enum": ["none", "vivid", "hdr", "cinematic"],
             "title": "Color",
-            "default": "vivid"
+            "default": "hdr"
           },
           "moments": {
             "items": {
@@ -4028,6 +4109,29 @@
             "enum": ["fill", "blur"],
             "title": "Fit",
             "default": "fill"
+          },
+          "cam_bg": {
+            "type": "string",
+            "enum": [
+              "original",
+              "blur_soft",
+              "blur_strong",
+              "neon_purple",
+              "cyber_blue",
+              "sunset",
+              "midnight",
+              "studio_gray",
+              "red_rush",
+              "aurora",
+              "gold_lux"
+            ],
+            "title": "Cam Bg",
+            "default": "blur_soft"
+          },
+          "cam_enhance": {
+            "type": "boolean",
+            "title": "Cam Enhance",
+            "default": true
           }
         },
         "type": "object",
@@ -4069,6 +4173,14 @@
             },
             "type": "array",
             "title": "Aspects"
+          },
+          "cam_backgrounds": {
+            "items": {
+              "$ref": "#/components/schemas/OptionOut"
+            },
+            "type": "array",
+            "title": "Cam Backgrounds",
+            "description": "backgrounds behind the cut-out streamer"
           },
           "encoder": {
             "type": "string",
@@ -4291,6 +4403,34 @@
             "title": "Length",
             "description": "short 15-60 s, medium 30-90 s, long = whole scenes up to 3 min",
             "default": "short"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "pick only from here on",
+            "examples": ["5:00"]
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "pick only up to here",
+            "examples": ["11:00"]
           }
         },
         "type": "object",

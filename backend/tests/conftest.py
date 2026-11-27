@@ -82,3 +82,16 @@ def migrated() -> None:
 def db(migrated: None) -> Iterator[Session]:
     with get_sessionmaker()() as s:
         yield s
+
+
+@pytest.fixture(autouse=True)
+def offline_cutout_model(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No 16 MB model downloads in tests: renders use the original facecam unless a test
+    provides a segmenter (or is marked `real_ml`)."""
+    if request.node.get_closest_marker("real_ml"):
+        return
+
+    def offline(_d: Path) -> Path:
+        raise OSError("offline in tests")
+
+    monkeypatch.setattr("clipforge.pipeline.signals.vision.ensure_segment_model", offline)

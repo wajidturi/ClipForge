@@ -27,11 +27,12 @@ from sqlalchemy import delete
 from clipforge.core import ffmpeg
 from clipforge.core.config import get_settings
 from clipforge.core.hashing import sha256_file
+from clipforge.core.logging import get_logger
 from clipforge.db.enums import AssetKind, AssetOwner
 from clipforge.db.models import MediaAsset
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobContext
-from clipforge.pipeline.render import compose, reframe
+from clipforge.pipeline.render import compose, matte, reframe
 from clipforge.pipeline.render.edl import CaptionWord, build_edl, keyed_words
 from clipforge.pipeline.render.effects import audio_chain, measure_loudness, pick_peaks
 from clipforge.pipeline.render.reframe import Box
@@ -39,7 +40,8 @@ from clipforge.pipeline.render.scene_render import CutPlan
 from clipforge.pipeline.signals import vision as vision_sig
 from clipforge.services import segments
 
-CUT_VERSION = 3  # 2: 1080p editor preview; 3: every person / facecam, who talks
+log = get_logger(__name__)
+CUT_VERSION = 4  # 2: 1080p preview; 3: every person / facecam; 4: person cut-out (matte)
 KEEP_CUTS = 2
 PAD_S = 2.0
 REACTIONS = [
@@ -83,6 +85,8 @@ class Cut:
             d.get("measured"),
             cams=cams,
             cam_kind=kind,
+            matte=self.dir / "matte.mp4" if d.get("matte") else None,
+            matte_size=tuple(d["matte"]["size"]) if d.get("matte") else (0, 0),
         )
 
     def keyed(self) -> list[tuple[CaptionWord, str]]:
@@ -186,6 +190,8 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
     job.check_cancelled()
     peaks_src = ([info["hottest"]] if info["hottest"] is not None else []) + info["loud"]
     zoom_peaks = pick_peaks([edl.map_clamped(t) for t in peaks_src], edl.duration)
+    matte_info = _make_matte(job, edited, d / "matte.mp4", people, a)
+    job.check_cancelled()
     job.progress(36, "measuring loudness")
     measured = measure_loudness(edited)
     preview = d / "preview.mp4"
@@ -239,9 +245,47 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
         "preview_asset_id": None,
     }
     data["preview_asset_id"] = str(_register_preview(short_id, preview, edl.duration))
+    if matte_info is not None:
+        matte_info["asset_id"] = str(_register_preview(short_id, d / "matte.mp4", edl.duration))
+    data["matte"] = matte_info
     (d / "cut.json").write_text(json.dumps(data), encoding="utf-8")
     _prune(short_id, keep=key)
     return Cut(key, d, edited, preview, data)
+
+
+def _make_matte(
+    job: JobContext, edited: Path, out: Path, people: reframe.People, a: reframe.Analysis
+) -> dict[str, Any] | None:
+    """Cut the streamer(s) out of the facecam panel, so templates can swap the
+    background. Optional: without the model (offline) the original cam is used."""
+    if people.kind not in ("overlay", "camera") or not people.cams:
+        return None
+    settings = get_settings()
+    try:
+        model = vision_sig.ensure_segment_model(settings.resolved_data_dir / "models")
+    except Exception as e:
+        log.warning("cut.matte_model_unavailable", error=str(e)[:200])
+        return None
+    job.progress(33, "cutting out the streamer")
+    try:
+        w, h = matte.build_matte(
+            edited,
+            people.cams,
+            out,
+            src_w=a.width,
+            src_h=a.height,
+            duration=a.duration,
+            make_segmenter=lambda: matte.MediaPipeSegmenter(model),
+            is_cancelled=lambda: job.cancelled,
+            on_progress=lambda p: job.progress(33 + p * 0.03, "cutting out the streamer"),
+        )
+    except ffmpeg.FFmpegCancelledError:
+        raise
+    except Exception as e:  # a background swap is a nice-to-have, never a failed render
+        log.warning("cut.matte_failed", error=str(e)[:300])
+        out.unlink(missing_ok=True)
+        return None
+    return {"size": [w, h], "asset_id": None}
 
 
 def _register_preview(short_id: uuid.UUID, path: Path, duration: float) -> uuid.UUID:
@@ -275,11 +319,11 @@ def _prune(short_id: uuid.UUID, keep: str) -> None:
     )
     data_root = get_settings().resolved_data_dir
     for old in dirs[KEEP_CUTS - 1 :]:
-        rel = (old / "preview.mp4").relative_to(data_root).as_posix()
+        rels = [(old / f).relative_to(data_root).as_posix() for f in ("preview.mp4", "matte.mp4")]
         with get_sessionmaker()() as s:
             s.execute(
                 delete(MediaAsset).where(
-                    MediaAsset.owner_type == AssetOwner.short, MediaAsset.path == rel
+                    MediaAsset.owner_type == AssetOwner.short, MediaAsset.path.in_(rels)
                 )
             )
             s.commit()

@@ -17,6 +17,7 @@ import {
   camTiles,
   CAM_MAX_GROW,
   hideRects,
+  matteCrop,
   renderImageLayer,
   renderTextLayer,
   speedLines,
@@ -186,6 +187,11 @@ function drawCaptions(
 }
 
 // ------------------------------------------------------------------ compositor
+/** Approximations of scene_render.HDR and cam_look (canvas filters cannot sharpen). */
+const HDR_FILTER = 'saturate(1.3) contrast(1.1) brightness(1.02)'
+const CAM_ENHANCE = 'contrast(1.06) saturate(1.08)'
+const BLUR_BACKGROUNDS: Record<string, number> = { blur_soft: 10, blur_strong: 26 } // scene.py
+
 type Cached = { key: string; img: HTMLCanvasElement }
 
 export class Compositor {
@@ -201,6 +207,9 @@ export class Compositor {
   private video: HTMLVideoElement
   private images: Map<string, HTMLImageElement>
   private resolution: number
+  private matte: HTMLVideoElement | null = null
+  private bgs = new Map<string, HTMLImageElement>()
+  private scratches: HTMLCanvasElement[] = []
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -240,6 +249,92 @@ export class Compositor {
       )
     }
     this.kw = new Set(m.keywords.map(norm).filter(Boolean))
+  }
+
+  /** The person cut-out video (cut.matte_asset_id); kept in step with the preview. */
+  setMatte(el: HTMLVideoElement | null) {
+    this.matte = el
+  }
+
+  /** Called when a background picture finished loading (redraw). */
+  onAsset: (() => void) | null = null
+
+  private background(id: string, w: number, h: number): HTMLImageElement | null {
+    const key = `${id}_${w}x${h}`
+    let img = this.bgs.get(key)
+    if (!img) {
+      img = new Image()
+      img.onload = () => this.onAsset?.()
+      img.src = `/api/v1/render/backgrounds/${id}.png?w=${w}&h=${h}`
+      this.bgs.set(key, img)
+    }
+    return img.complete && img.naturalWidth ? img : null
+  }
+
+  private syncMatte(t: number) {
+    const m = this.matte
+    if (!m || m.readyState < 1) return
+    if (this.video.paused) {
+      if (!m.paused) m.pause()
+      if (Math.abs(m.currentTime - t) > 0.02) m.currentTime = t
+    } else {
+      if (m.paused) void m.play().catch(() => undefined)
+      if (Math.abs(m.currentTime - t) > 0.15) m.currentTime = t
+    }
+  }
+
+  /** Like the renderer's alphamerge: the streamer from the cam crop, with the matte as
+   *  alpha, on a tile-sized canvas. Null when there is nothing to cut out. */
+  private cutOut(
+    scene: Scene,
+    cut: Cut,
+    rect: [number, number, number, number],
+    r: Rect,
+    f: number,
+    look: string,
+  ): HTMLCanvasElement | null {
+    const m = this.matte
+    const ok =
+      scene.regions.cam_bg !== 'original' &&
+      !!cut.matte_asset_id &&
+      (cut.cam_kind === 'overlay' || cut.cam_kind === 'camera') &&
+      !!m &&
+      m.readyState >= 2
+    if (!ok || !m) return null
+    const w = Math.max(2, Math.round(r.w * this.resolution))
+    const h = Math.max(2, Math.round(r.h * this.resolution))
+    const pc = this.scratch(0, w, h)
+    const mc = this.scratch(1, w, h)
+    const pctx = pc.getContext('2d', { willReadFrequently: true })
+    const mctx = mc.getContext('2d', { willReadFrequently: true })
+    if (!pctx || !mctx) return null
+    const [x, y, cw, ch] = rect
+    pctx.filter = look || 'none'
+    pctx.drawImage(this.video, x * f, y * f, cw * f, ch * f, 0, 0, w, h)
+    const mw = cut.matte_w || m.videoWidth
+    const mh = cut.matte_h || m.videoHeight
+    if (!mw || !mh) return null
+    const [qx, qy, qw, qh] = matteCrop(rect, cut.src_w, cut.src_h, mw, mh)
+    const k = (m.videoWidth || mw) / mw
+    mctx.drawImage(m, qx * k, qy * k, qw * k, qh * k, 0, 0, w, h)
+    const pd = pctx.getImageData(0, 0, w, h)
+    const md = mctx.getImageData(0, 0, w, h).data
+    for (let i = 3; i < pd.data.length; i += 4) pd.data[i] = md[i - 3]!
+    pctx.putImageData(pd, 0, 0)
+    return pc
+  }
+
+  private scratch(i: number, w: number, h: number): HTMLCanvasElement {
+    let c = this.scratches[i]
+    if (!c) {
+      c = document.createElement('canvas')
+      this.scratches[i] = c
+    }
+    if (c.width !== w || c.height !== h) {
+      c.width = w
+      c.height = h
+    }
+    return c
   }
 
   /** Like scene_render.hide_cams: blur the facecam overlays inside the gameplay when
@@ -356,15 +451,18 @@ export class Compositor {
     ctx.fillStyle = scene.regions.frame.background
     ctx.fillRect(0, 0, W, H)
 
+    this.syncMatte(t)
     const p = panels(scene)
     const vw = v.videoWidth || cut.src_w
     const f = vw / cut.src_w // preview video is smaller than the source
     const filter =
-      fx.color === 'vivid'
-        ? 'saturate(1.22) contrast(1.05)'
-        : fx.color === 'cinematic'
-          ? 'saturate(1.1) contrast(1.12) brightness(0.98)'
-          : 'none'
+      fx.color === 'hdr'
+        ? HDR_FILTER
+        : fx.color === 'vivid'
+          ? 'saturate(1.22) contrast(1.05)'
+          : fx.color === 'cinematic'
+            ? 'saturate(1.1) contrast(1.12) brightness(0.98)'
+            : 'none'
     const ready = v.readyState >= 2
     const fit = ['floating_facecam', 'cinematic'].includes(scene.template)
       ? scene.regions.fit
@@ -424,7 +522,8 @@ export class Compositor {
       const tiles = p.cam ? camTiles(p.cam, cams.length) : []
       cams.forEach((cam, i) => {
         const r = tiles[i]!
-        const [x, y, cw, ch] = coverCrop(cam, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
+        const rect = coverCrop(cam, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
+        const [x, y, cw, ch] = rect
         ctx.save()
         ctx.filter = filter
         if (scene.template === 'floating_facecam') {
@@ -435,7 +534,26 @@ export class Compositor {
           else ctx.roundRect(r.x, r.y, r.w, r.h, shape === 'rounded' ? r.w * 0.22 : 0)
           ctx.clip()
         }
-        ctx.drawImage(v, x * f, y * f, cw * f, ch * f, r.x, r.y, r.w, r.h)
+        const look = scene.regions.cam_enhance ? CAM_ENHANCE : ''
+        const person = this.cutOut(scene, cut, rect, r, f, look)
+        if (person) {
+          const bg = scene.regions.cam_bg
+          const blur = BLUR_BACKGROUNDS[bg]
+          if (blur) {
+            const px = Math.max(2, Math.min((blur * r.w) / W, r.w / 8, r.h / 8))
+            const soft = (px * 0.6 * this.resolution).toFixed(1)
+            ctx.filter = `${filter === 'none' ? '' : filter} blur(${soft}px) brightness(0.97)`
+            ctx.drawImage(v, x * f, y * f, cw * f, ch * f, r.x, r.y, r.w, r.h)
+          } else {
+            const img = this.background(bg, r.w, r.h)
+            if (img) ctx.drawImage(img, r.x, r.y, r.w, r.h)
+          }
+          ctx.filter = filter
+          ctx.drawImage(person, r.x, r.y, r.w, r.h)
+        } else {
+          ctx.filter = [filter === 'none' ? '' : filter, look].join(' ').trim() || 'none'
+          ctx.drawImage(v, x * f, y * f, cw * f, ch * f, r.x, r.y, r.w, r.h)
+        }
         ctx.restore()
       })
     }

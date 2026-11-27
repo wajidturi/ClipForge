@@ -212,7 +212,14 @@
     "templateHelp": "Pick a look. You can switch templates and customise everything later.",
     "startRender": "Pick {{n}} moments and generate",
     "startWhole_one": "Generate 1 Short",
-    "startWhole_other": "Generate {{count}} Shorts"
+    "startWhole_other": "Generate {{count}} Shorts",
+    "range": "Time range (optional)",
+    "rangeFrom": "From",
+    "rangeTo": "To",
+    "rangeFromPh": "5:00",
+    "rangeToPh": "11:00",
+    "rangeClear": "Whole video",
+    "rangeHelp": "Pick moments only from this part, e.g. 5:00 – 11:00. Leave empty for the whole video. Times: mm:ss or h:mm:ss."
   },
   "runs": {
     "title": "Picked moments (asked for {{n}})",
@@ -675,7 +682,12 @@
       "gap": "Spacing",
       "background": "Background",
       "elements": "Template elements",
-      "placeholderHelp": "{hook}, {channel}, {reaction} and {title} fill in automatically from the Short."
+      "placeholderHelp": "{hook}, {channel}, {reaction} and {title} fill in automatically from the Short.",
+      "camLook": "Facecam look",
+      "camBg": "Background behind the streamer",
+      "camBgNone": "No streamer cut-out for this clip yet. Press “Render final video” once to prepare it, then pick a background. (Clips without a facecam have none.)",
+      "camEnhance": "Sharpen & clarity",
+      "camEnhanceHelp": "Cleans noise, enlarges with a sharp filter and restores detail, so a small facecam stays crisp when zoomed in."
     },
     "shape": {
       "circle": "Circle",
@@ -768,7 +780,8 @@
       "grade": {
         "none": "Natural",
         "vivid": "Vivid",
-        "cinematic": "Cinematic"
+        "cinematic": "Cinematic",
+        "hdr": "HDR"
       }
     },
     "forward": "Bring forward",

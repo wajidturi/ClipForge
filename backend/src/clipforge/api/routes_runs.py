@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import io
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
@@ -32,7 +33,7 @@ from clipforge.api.schemas import (
 )
 from clipforge.db.enums import AssetKind, AssetOwner, ShortStatus
 from clipforge.db.models import Candidate, Job, MediaAsset, Run, Short, ShortPart, ShortVersion
-from clipforge.pipeline.render import captions, compose, fonts
+from clipforge.pipeline.render import captions, compose, fonts, raster
 from clipforge.pipeline.render import scene as sc
 from clipforge.services import preview as preview_svc
 from clipforge.services import runs as runs_svc
@@ -108,6 +109,8 @@ def create_run(body: RunCreate, db: DB) -> RunOut:
             ai_model=body.ai_model,
             render=body.render.model_dump() if body.render else None,
             length=body.length,
+            start=body.start,
+            end=body.end,
         )
     except runs_svc.RunInputError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
@@ -198,6 +201,28 @@ async def ai_status() -> AIStatusOut:
 
 
 # ------------------------------------------------------------------ rendering
+@router.get("/render/backgrounds/{bg_id}.png", response_class=Response)
+async def cam_background_png(
+    bg_id: str,
+    w: Annotated[int, Query(ge=16, le=1920)] = 540,
+    h: Annotated[int, Query(ge=16, le=1920)] = 400,
+) -> Response:
+    """A facecam background picture at the given size: the same one the renderer uses."""
+    if bg_id not in sc.CAM_BACKGROUNDS or bg_id in sc.BLUR_BACKGROUNDS or bg_id == "original":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no picture for this background")
+
+    def png() -> bytes:
+        buf = io.BytesIO()
+        raster.cam_background(bg_id, w, h).save(buf, "PNG")
+        return buf.getvalue()
+
+    return Response(
+        await run_in_threadpool(png),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @router.get("/render/options", response_model=RenderOptions)
 async def render_options() -> RenderOptions:
     """Templates, caption presets, fonts and sizes for the template picker and studio."""
@@ -221,6 +246,7 @@ async def render_options() -> RenderOptions:
             OptionOut(id="4:5", label="4:5 (Instagram feed)"),
             OptionOut(id="1:1", label="1:1 (square)"),
         ],
+        cam_backgrounds=[OptionOut(id=k, label=v) for k, v in sc.CAM_BACKGROUNDS.items()],
         encoder="GPU (NVENC)" if enc[1] == "h264_nvenc" else "CPU (x264)",
     )
 

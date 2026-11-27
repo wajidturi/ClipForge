@@ -268,6 +268,12 @@ class RunCreate(BaseModel):
         default="short",
         description="short 15-60 s, medium 30-90 s, long = whole scenes up to 3 min",
     )
+    start: str | None = Field(
+        default=None, max_length=20, examples=["5:00"], description="pick only from here on"
+    )
+    end: str | None = Field(
+        default=None, max_length=20, examples=["11:00"], description="pick only up to here"
+    )
 
 
 class RunOut(BaseModel):
@@ -413,6 +419,9 @@ class RenderOptions(BaseModel):
     fonts: list[FontOut]
     caption_presets: dict[str, Captions]
     aspects: list[OptionOut]
+    cam_backgrounds: list[OptionOut] = Field(
+        default_factory=list, description="backgrounds behind the cut-out streamer"
+    )
     encoder: str
 
 
@@ -429,6 +438,11 @@ class CutOut(BaseModel):
         default_factory=list, description="facecam panel boxes, left to right (x, y, w, h)"
     )
     primary: int = Field(0, description="index in cams of the main person (floating bubble)")
+    matte_asset_id: uuid.UUID | None = Field(
+        None, description="person cut-out video (white = person), same timing as the preview"
+    )
+    matte_w: int = 0
+    matte_h: int = 0
     cam_kind: Literal["overlay", "camera", "action"] = Field(
         "overlay",
         description="overlay = streamer facecams, camera = people on the main camera, "

@@ -31,25 +31,48 @@ FACE_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
     "face_landmarker/float16/latest/face_landmarker.task"
 )
+SEGMENT_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/image_segmenter/"
+    "selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite"
+)
 PROXY_FPS = 4
 PROXY_HEIGHT = 360
 
 
-def ensure_face_model(models_dir: Path) -> Path:
-    """Download MediaPipe's face landmarker (Apache-2.0, ~4 MB) once."""
-    dst = models_dir / "mediapipe" / "face_landmarker.task"
-    if dst.exists() and dst.stat().st_size > 1_000_000:
+def _download_once(url: str, dst: Path, min_bytes: int) -> Path:
+    if dst.exists() and dst.stat().st_size > min_bytes:
         return dst
     dst.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=dst.parent, suffix=".part")
     os.close(fd)
-    with httpx.stream("GET", FACE_MODEL_URL, follow_redirects=True, timeout=60) as r:
-        r.raise_for_status()
-        with open(tmp, "wb") as f:
-            for chunk in r.iter_bytes():
-                f.write(chunk)
-    os.replace(tmp, dst)
+    try:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_bytes():
+                    f.write(chunk)
+        if os.path.getsize(tmp) <= min_bytes:
+            raise RuntimeError(f"download of {dst.name} is incomplete")
+        os.replace(tmp, dst)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
     return dst
+
+
+def ensure_face_model(models_dir: Path) -> Path:
+    """Download MediaPipe's face landmarker (Apache-2.0, ~4 MB) once."""
+    return _download_once(
+        FACE_MODEL_URL, models_dir / "mediapipe" / "face_landmarker.task", 1_000_000
+    )
+
+
+def ensure_segment_model(models_dir: Path) -> Path:
+    """Download MediaPipe's multiclass selfie segmenter (Apache-2.0, ~16 MB) once:
+    cuts the streamer out of the facecam, including hair, headsets and caps."""
+    return _download_once(
+        SEGMENT_MODEL_URL, models_dir / "mediapipe" / "selfie_multiclass_256x256.tflite", 10_000_000
+    )
 
 
 @dataclass

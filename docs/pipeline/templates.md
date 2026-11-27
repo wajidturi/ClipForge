@@ -38,6 +38,37 @@ crop that reaches a corner does not show a cut-off second copy of the streamer. 
 facecam tile zooms in on the face (the crop grows at most 1.3× past the cam box) instead
 of pulling in what sits above or below the cam.
 
+### Facecam look: background, sharpness, HDR
+
+- **Person cut-out (matte).** When the cut is prepared, MediaPipe's multiclass selfie
+  segmenter (`selfie_multiclass_256x256.tflite`, 16 MB, downloaded once into
+  `data/models/mediapipe/`) cuts the streamer(s) out of each facecam region, 8 times a
+  second with blended frames in between and temporal smoothing. The result is one
+  grayscale video (`matte.mp4`, white = person) the size of the frame scaled to 1280
+  wide; renderer and studio preview both use it as alpha. Made once per cut, so
+  changing the background later costs only the fast compose. ~1 s per second of clip
+  per facecam on a CPU. Without the model (offline) the original cam is used.
+- **Backgrounds** (`regions.cam_bg`, Template tab → Facecam look): Original, Soft blur
+  (default), Strong blur, and 8 drawn pictures (Neon purple, Cyber blue, Sunset,
+  Midnight, Studio, Red rush, Aurora, Gold). Pictures are generated at the tile size
+  (`raster.cam_background`, served at `GET /render/backgrounds/{id}.png?w=&h=` for the
+  preview), so they are never stretched.
+- **Sharpen & clarity** (`regions.cam_enhance`, on by default): the facecam crop is
+  denoised (`hqdn3d`), enlarged with Lanczos, then gets fine and wide unsharp masks plus a
+  little contrast and saturation. This removes the blocky, smeary look of a small cam
+  enlarged ~6×; it cannot invent detail the stream never had.
+- **HDR** (`effects.color = "hdr"`, the new default grade): stronger local contrast,
+  richer colour and a touch of clarity on the whole Short (Instagram-style pop). The
+  preview approximates it with canvas filters (no sharpening there).
+
+### Time range (Create page)
+
+"Time range (optional)" picks moments only between From and To (e.g. 5:00 – 11:00) of
+an analysed source; nothing is downloaded or analysed again. Calm parts count too
+inside a chosen range (they are ranked by speech when nothing is loud). To download and
+analyse only part of a long video in the first place, use "Only part of the video"
+when adding the source.
+
 `{reaction}` is a short exclamation the streamer actually said near the peak ("OH MY GOD!",
 "NO WAY!", "LET'S GO!"…), found in the transcript, else "NO WAY!".
 
