@@ -30,7 +30,14 @@ cd backend; uv sync --python 3.12; uv run pre-commit install; uv run clipforge d
 cd ..\frontend; npm ci
 ```
 
-## 3. Run in development
+## 3. Run
+
+Everyday use (Windows): double-click **`Start ClipForge.cmd`** in the project folder (or a
+Desktop shortcut to it). It starts the API and workers from the project folder (so the
+library in `./data` is used), builds the web app once if needed, and opens
+http://localhost:8800. Close its window to stop ClipForge.
+
+### Development
 
 ```powershell
 .\scripts\dev.ps1
