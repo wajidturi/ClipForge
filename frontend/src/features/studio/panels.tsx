@@ -32,6 +32,9 @@ import {
   setRegions,
   type Edit,
 } from './edit'
+import { canvasOf } from './canvas'
+import { designSize } from './draw'
+import { CanvasPicker } from './CanvasPicker'
 import { EMOJIS, PLACEHOLDERS, STICKERS, newLayer } from './library'
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
@@ -71,15 +74,25 @@ export function TemplatePanel({ e }: { e: Edit }) {
   const s = e.scene
   const r = s.regions
   const stacked = ['streamer_first', 'gameplay_first', 'dual_vision'].includes(s.template)
+  const [cw, ch] = designSize(s)
+  const wide = cw > ch // landscape: the panels sit side by side
   const name = useLayerName()
   const elements = s.layers.filter((l) => l.role && !['user', 'logo'].includes(l.role))
   return (
     <>
+      <Section title={t('canvas.label')}>
+        <CanvasPicker
+          value={canvasOf(s.canvas)}
+          onChange={(canvas) => e.update((sc) => ({ ...sc, canvas }))}
+          presets={e.canvases}
+          limits={e.canvasLimits}
+        />
+      </Section>
       {stacked && (
         <Section title={t('cz.tpl.layout')}>
-          <Row label={t(`cz.tpl.split.${s.template}`)}>
+          <Row label={t(`cz.tpl.${wide ? 'splitWide' : 'split'}.${s.template}`)}>
             <Slider
-              label={t(`cz.tpl.split.${s.template}`)}
+              label={t(`cz.tpl.${wide ? 'splitWide' : 'split'}.${s.template}`)}
               value={r.split}
               min={0.25}
               max={0.75}

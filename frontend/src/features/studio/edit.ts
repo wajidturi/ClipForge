@@ -14,6 +14,9 @@ export type Edit = {
   presets: Record<string, Captions>
   /** facecam backgrounds (id, label) and whether this cut has a person cut-out */
   backgrounds: { id: string; label: string }[]
+  /** video size presets and the limits for a custom size */
+  canvases: { id: string; label: string; w: number; h: number }[]
+  canvasLimits: { min: number; max: number; ratio: number }
   cutOut: boolean
 }
 

@@ -6,8 +6,10 @@ The renderer (``compose.scene_graph``) and the browser preview
 (``frontend/src/features/studio/compositor.ts``) both draw from it with the same
 rules, so the studio preview matches the exported MP4.
 
-Coordinates: output canvas 1080x1920; positions are fractions (0..1) of it, sizes
-are pixels at 1080 wide. Times are seconds of the finished Short.
+Coordinates: positions are fractions (0..1) of the canvas; sizes are pixels on the
+*design canvas*, whose short side is always 1080 (9:16 -> 1080x1920, 16:9 -> 1920x1080).
+The video is drawn at the design size and scaled to the chosen output size at the end,
+so text and frames keep their proportions at any size. Times are seconds of the Short.
 
 Template elements are ordinary layers with a ``role`` (``hook``, ``reaction``,
 ``name`` ...), so users can move, restyle or hide them. Text may use the
@@ -21,7 +23,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from clipforge.pipeline.render.captions import STYLES
 from clipforge.pipeline.render.fonts import DEFAULT_FONT, FONTS
@@ -197,6 +199,35 @@ class Layer(_M):
         return v if v in FONTS else DEFAULT_FONT
 
 
+CanvasPreset = Literal["9:16", "4:5", "1:1", "16:9", "4:3", "custom"]
+CANVAS_PRESETS: dict[str, tuple[int, int, str]] = {  # id -> (width, height, label)
+    "9:16": (1080, 1920, "Shorts · Reels · TikTok"),
+    "4:5": (1080, 1350, "Instagram feed"),
+    "1:1": (1080, 1080, "Square"),
+    "16:9": (1920, 1080, "YouTube · landscape"),
+    "4:3": (1440, 1080, "Classic landscape"),
+}
+CANVAS_MIN, CANVAS_MAX = 240, 3840
+CANVAS_MAX_RATIO = 4.0  # longest side at most 4x the shortest
+
+
+class Canvas(_M):
+    """Output size of the video: one of the presets, or any width x height."""
+
+    preset: CanvasPreset = "9:16"
+    w: int = Field(1080, ge=CANVAS_MIN, le=CANVAS_MAX)
+    h: int = Field(1920, ge=CANVAS_MIN, le=CANVAS_MAX)
+
+    @model_validator(mode="after")
+    def _fit(self) -> Canvas:
+        if self.preset != "custom":
+            self.w, self.h = CANVAS_PRESETS[self.preset][:2]
+        self.w, self.h = self.w // 2 * 2, self.h // 2 * 2  # video encoders need even sizes
+        if max(self.w, self.h) > CANVAS_MAX_RATIO * min(self.w, self.h):
+            raise ValueError(f"width and height may differ by at most {CANVAS_MAX_RATIO:g}x")
+        return self
+
+
 class Scene(_M):
     v: int = SCENE_VERSION
     template: TemplateId = "streamer_first"
@@ -204,6 +235,19 @@ class Scene(_M):
     captions: Captions = Field(default_factory=Captions)
     effects: Effects = Field(default_factory=Effects)
     layers: list[Layer] = Field(default_factory=list, max_length=40)
+    canvas: Canvas = Field(default_factory=Canvas)
+
+
+def design_size(scene: Scene) -> tuple[int, int]:
+    """The canvas everything is drawn on: the output shape with its short side 1080."""
+    w, h = scene.canvas.w, scene.canvas.h
+    k = 1080 / min(w, h)
+    return even(w * k), even(h * k)
+
+
+def is_landscape(scene: Scene) -> bool:
+    w, h = design_size(scene)
+    return w > h
 
 
 # ------------------------------------------------------------------ templates
@@ -673,6 +717,7 @@ def switch_template(scene: Scene, template: str, ctx: Ctx) -> Scene:
     """New template defaults, keeping what the user added (logos, own text, emojis).
     Captions the user changed are kept; untouched ones take the new template's look."""
     new = default_scene(template, ctx)
+    new.canvas = scene.canvas.model_copy()
     keep = [ly for ly in scene.layers if ly.role in USER_ROLES]
     new.layers += keep
     if _captions_customised(scene):
@@ -718,21 +763,28 @@ def even(v: float) -> int:
 def panels(scene: Scene) -> dict[str, Rect]:
     """Where the game and the facecam are drawn (output pixels).
 
-    Stacked templates: two full-width panels (top/bottom) inset by the frame gap.
+    Stacked templates: two panels inset by the frame gap, top/bottom on portrait and
+    square canvases, side by side (first one on the left) on landscape ones.
     Full-screen templates: the game fills the frame; the floating cam is a square.
     """
     r, t = scene.regions, scene.template
+    W, H = design_size(scene)  # noqa: N806
     g = r.frame.gap if r.frame.style != "none" else 0
     if t in ("streamer_first", "gameplay_first", "dual_vision"):
-        top_h = even(H * r.split)
-        top = Rect(g, g, even(W - 2 * g), even(top_h - g - g / 2))
-        bottom = Rect(g, even(top_h + g / 2), even(W - 2 * g), even(H - top_h - g - g / 2))
+        if W > H:
+            left_w = even(W * r.split)
+            first = Rect(g, g, even(left_w - g - g / 2), even(H - 2 * g))
+            second = Rect(even(left_w + g / 2), g, even(W - left_w - g - g / 2), even(H - 2 * g))
+        else:
+            top_h = even(H * r.split)
+            first = Rect(g, g, even(W - 2 * g), even(top_h - g - g / 2))
+            second = Rect(g, even(top_h + g / 2), even(W - 2 * g), even(H - top_h - g - g / 2))
         if t == "gameplay_first":
-            return {"game": top, "cam": bottom}
-        return {"cam": top, "game": bottom}
+            return {"game": first, "cam": second}
+        return {"cam": first, "game": second}
     out = {"game": Rect(g, g, even(W - 2 * g), even(H - 2 * g))}
     if t == "floating_facecam" and r.cam.visible:
-        side = even(W * r.cam.size)
+        side = even(min(W, H) * r.cam.size)
         out["cam"] = Rect(round(r.cam.x * W - side / 2), round(r.cam.y * H - side / 2), side, side)
     return out
 
@@ -742,9 +794,15 @@ CAM_MAX_GROW = 1.3  # facecam crops: see cover_crop
 
 
 def cam_tiles(rect: Rect, n: int, gap: int = TILE_GAP) -> list[Rect]:
-    """Split the facecam panel into n side-by-side tiles (one per streamer)."""
+    """Split the facecam panel into n tiles (one per streamer): side by side, or one
+    above the other when the panel is taller than wide (landscape layouts)."""
     if n <= 1:
         return [rect] if n == 1 else []
+    if rect.h > rect.w:
+        h = even((rect.h - gap * (n - 1)) / n)
+        rows = [Rect(rect.x, rect.y + i * (h + gap), rect.w, h) for i in range(n - 1)]
+        last_y = rect.y + (n - 1) * (h + gap)
+        return [*rows, Rect(rect.x, last_y, rect.w, even(rect.y + rect.h - last_y))]
     w = even((rect.w - gap * (n - 1)) / n)
     out = [Rect(rect.x + i * (w + gap), rect.y, w, rect.h) for i in range(n - 1)]
     last_x = rect.x + (n - 1) * (w + gap)

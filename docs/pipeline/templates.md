@@ -61,6 +61,22 @@ of pulling in what sits above or below the cam.
   richer colour and a touch of clarity on the whole Short (Instagram-style pop). The
   preview approximates it with canvas filters (no sharpening there).
 
+### Video size (Template tab → Video size, and on Create)
+
+Five presets: **9:16** 1080×1920 (Shorts, Reels, TikTok), **4:5** 1080×1350 (Instagram
+feed), **1:1** 1080×1080, **16:9** 1920×1080 (YouTube, landscape), **4:3** 1440×1080; or
+**Custom**: any width × height from 240 to 3840 px (even numbers; the long side at most 4×
+the short side). Stored as `scene.canvas` (`{preset, w, h}`); the live preview reshapes as
+you click or type, and a new render uses the size.
+
+The video is drawn on a *design canvas* with the same shape and a 1080 short side
+(`scene.design_size`), so text, frames and stickers keep their proportions at any size;
+the last filter scales it to the exact output size (e.g. 720×1280). On landscape
+canvases the stacked templates put their panels side by side (Streamer First: facecam
+left; Gameplay First: gameplay left), Dual Vision's divider stands upright, several
+streamers stack vertically in the facecam panel, and the floating cam is sized from the
+short side. The cover image uses the video size too.
+
 ### Time range (Create page)
 
 "Time range (optional)" picks moments only between From and To (e.g. 5:00 – 11:00) of

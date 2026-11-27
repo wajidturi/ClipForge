@@ -1069,6 +1069,39 @@ export interface components {
       /** Tail Text */
       tail_text: string | null
     }
+    /**
+     * Canvas
+     * @description Output size of the video: one of the presets, or any width x height.
+     */
+    Canvas: {
+      /**
+       * Preset
+       * @default 9:16
+       * @enum {string}
+       */
+      preset?: '9:16' | '4:5' | '1:1' | '16:9' | '4:3' | 'custom'
+      /**
+       * W
+       * @default 1080
+       */
+      w?: number
+      /**
+       * H
+       * @default 1920
+       */
+      h?: number
+    }
+    /** CanvasPresetOut */
+    CanvasPresetOut: {
+      /** Id */
+      id: string
+      /** Label */
+      label: string
+      /** W */
+      w: number
+      /** H */
+      h: number
+    }
     /** Captions */
     Captions: {
       /**
@@ -1813,6 +1846,18 @@ export interface components {
        * @description backgrounds behind the cut-out streamer
        */
       cam_backgrounds?: components['schemas']['OptionOut'][]
+      /**
+       * Canvases
+       * @description video size presets (any size is allowed too)
+       */
+      canvases?: components['schemas']['CanvasPresetOut'][]
+      /**
+       * Canvas Limits
+       * @description min/max side in px and the largest side ratio
+       */
+      canvas_limits?: {
+        [key: string]: number
+      }
       /** Encoder */
       encoder: string
     }
@@ -1851,6 +1896,8 @@ export interface components {
       layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
+      /** @description video size (ignored when a full scene is sent: it has one) */
+      canvas?: components['schemas']['Canvas'] | null
       /**
        * Caption Overrides
        * @description word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept.
@@ -2021,6 +2068,8 @@ export interface components {
         | 'cinematic'
       /** Aspects */
       aspects?: ('4:5' | '1:1')[]
+      /** @description video size: a preset or any width x height (default 9:16) */
+      canvas?: components['schemas']['Canvas'] | null
     }
     /** RunRenderRequest */
     RunRenderRequest: {
@@ -2052,6 +2101,8 @@ export interface components {
       layout?: ('auto' | 'crop' | 'stack' | 'bubble' | 'full') | null
       /** Aspects */
       aspects?: ('4:5' | '1:1')[] | null
+      /** @description video size (ignored when a full scene is sent: it has one) */
+      canvas?: components['schemas']['Canvas'] | null
       /**
        * Caption Overrides
        * @description word key (source start time, 2 decimals) -> new text; empty hides the word. Left out: the previous version's fixes are kept.
@@ -2091,6 +2142,7 @@ export interface components {
       effects?: components['schemas']['Effects']
       /** Layers */
       layers?: components['schemas']['Layer'][]
+      canvas?: components['schemas']['Canvas']
     }
     /** SegmentOut */
     SegmentOut: {

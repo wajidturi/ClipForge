@@ -1,4 +1,4 @@
-"""Cover image: the most exciting frame with the hook written on it (1080x1920 JPEG)."""
+"""Cover image: the most exciting frame with the hook written on it (JPEG, video size)."""
 
 from __future__ import annotations
 
@@ -42,18 +42,20 @@ def _wrap(
 
 def make_cover(frame: Path, hook: str | None, out: Path) -> Path:
     img = Image.open(frame).convert("RGB")
-    if img.size != (1080, 1920):
-        img = img.resize((1080, 1920))
+    w, h = img.size
     if hook:
+        k = min(w, h) / 1080  # sizes are designed for a 1080 short side
         draw = ImageDraw.Draw(img)
-        font = _font(92)
-        lines = _wrap(draw, hook.upper(), font, 900)
-        y = 220
+        font = _font(max(12, round(92 * k)))
+        lines = _wrap(draw, hook.upper(), font, round(w * 0.83))
+        y = round(h * 0.115)
         for line in lines:
-            w = draw.textlength(line, font=font)
-            x = (1080 - w) / 2
-            draw.rectangle([x - 28, y - 14, x + w + 28, y + 112], fill=(255, 255, 255))
+            lw = draw.textlength(line, font=font)
+            x = (w - lw) / 2
+            draw.rectangle(
+                [x - 28 * k, y - 14 * k, x + lw + 28 * k, y + 112 * k], fill=(255, 255, 255)
+            )
             draw.text((x, y), line, font=font, fill=(17, 17, 17))
-            y += 128
+            y += round(128 * k)
     img.save(out, "JPEG", quality=88)
     return out

@@ -29,13 +29,12 @@ from clipforge.pipeline.render.reframe import Box, track_targets, x_expression
 from clipforge.pipeline.render.scene import (
     BLUR_BACKGROUNDS,
     CAM_MAX_GROW,
-    H,
     Layer,
     Rect,
     Scene,
-    W,
     cam_tiles,
     cover_crop,
+    design_size,
     fill_text,
     panels,
 )
@@ -222,6 +221,7 @@ def build_graph(
         return add_input(["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.3f}", "-i", str(path)])
 
     p = panels(scene)
+    W, H = design_size(scene)  # noqa: N806  (drawn at this size, scaled to the canvas at the end)
     fit = scene.regions.fit if scene.template in ("floating_facecam", "cinematic") else "fill"
     cams = plan.cam_list(scene.template) if "cam" in p else []
     tiles = cam_tiles(p["cam"], len(cams)) if cams else []
@@ -276,7 +276,7 @@ def build_graph(
                 f"boxblur=1:1[mk{i}]"
             )
             if reg.cam_bg in BLUR_BACKGROUNDS:
-                rad = max(2, min(BLUR_BACKGROUNDS[reg.cam_bg] * r.w // W, r.w // 8, r.h // 8))
+                rad = max(2, min(BLUR_BACKGROUNDS[reg.cam_bg] * r.w // 1080, r.w // 8, r.h // 8))
                 g.append(f"[cc{i}]split[cp{i}][cb{i}]")
                 g.append(f"[cb{i}]boxblur={rad}:3,eq=brightness=-0.03[bg{i}]")
                 person = f"[cp{i}]"
@@ -324,7 +324,7 @@ def build_graph(
         base = "[framed]"
     if fx.speed_lines and moments:
         spath = workdir / "speed_lines.png"
-        raster.speed_lines().save(spath)
+        raster.speed_lines(W, H).save(spath)
         s = add_image(spath)
         g.append(f"{base}{s}overlay=0:0:enable='{_windows(moments, 0.45)}':shortest=1[speed]")
         base = "[speed]"
@@ -333,7 +333,11 @@ def build_graph(
         ass = workdir / "captions.ass"
         ass.write_text(
             captions.build_ass(
-                words, settings=scene.captions.model_dump(), keywords=keywords, duration=d
+                words,
+                settings=scene.captions.model_dump(),
+                keywords=keywords,
+                duration=d,
+                size=(W, H),
             ),
             encoding="utf-8",
         )
@@ -350,12 +354,12 @@ def build_graph(
             src = image_path(ly.asset_id or "")
             if src is None:
                 continue
-            img = raster.render_image_layer(ly, src)
+            img = raster.render_image_layer(ly, src, W)
         else:
             text = fill_text(ly.text, values)
             if not text:
                 continue
-            img = raster.render_text_layer(ly, text)
+            img = raster.render_text_layer(ly, text, W)
         lpath = workdir / f"layer_{i:02d}.png"
         img.save(lpath)
         inp = add_image(lpath)
@@ -396,6 +400,9 @@ def build_graph(
         post.append(f"eq=brightness='0.3*({_decay(moments, 0.15)})':eval=frame")
     if fx.glitch and moments:
         post.append(f"rgbashift=rh=14:bh=-14:enable='{_windows(moments, 0.12)}'")
+    out_w, out_h = scene.canvas.w, scene.canvas.h
+    if (out_w, out_h) != (W, H):  # the chosen size (custom or a preset != design size)
+        post.append(f"scale={out_w}:{out_h}:flags=lanczos,setsar=1")
     post.append("format=yuv420p")
     g.append(f"{base}{','.join(post)}[v]")
     g.append(f"[0:a]{audio_chain(plan.measured)}[a]")

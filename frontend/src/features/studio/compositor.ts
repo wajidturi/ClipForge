@@ -15,6 +15,7 @@ import {
   panels,
   camList,
   camTiles,
+  designSize,
   CAM_MAX_GROW,
   hideRects,
   matteCrop,
@@ -110,6 +111,8 @@ function drawCaptions(
   groups: Group[],
   kw: Set<string>,
   t: number,
+  W: number,
+  H: number,
 ) {
   const g = groups.find((x) => t >= x.start && t < x.end)
   if (!g) return
@@ -229,6 +232,13 @@ export class Compositor {
   setModel(m: Model) {
     const prev = this.model
     this.model = m
+    const [dw, dh] = designSize(m.scene)
+    const cw = Math.round(dw * this.resolution)
+    const ch = Math.round(dh * this.resolution)
+    if (this.canvas.width !== cw || this.canvas.height !== ch) {
+      this.canvas.width = cw // the video size changed: resize the drawing surface
+      this.canvas.height = ch
+    }
     if (!prev || prev.cut !== m.cut || prev.overrides !== m.overrides) {
       const words = m.cut.words
         .map(([start, end, text, key]) => {
@@ -389,6 +399,7 @@ export class Compositor {
     const key = JSON.stringify([
       scene.template,
       scene.regions,
+      scene.canvas,
       scene.effects.letterbox,
       scene.effects.vignette,
     ])
@@ -402,19 +413,21 @@ export class Compositor {
     if (ly.kind === 'image') {
       const img = ly.asset_id ? this.images.get(ly.asset_id) : undefined
       if (!img?.complete || !img.naturalWidth) return null
-      const key = JSON.stringify([ly.width, ly.scale, ly.rotation, ly.opacity, ly.asset_id])
+      const cw = designSize(m.scene)[0]
+      const key = JSON.stringify([ly.width, ly.scale, ly.rotation, ly.opacity, ly.asset_id, cw])
       const c = this.layers.get(ly.id)
       if (c?.key === key) return c.img
-      const out = renderImageLayer(ly, img)
+      const out = renderImageLayer(ly, img, cw)
       this.layers.set(ly.id, { key, img: out })
       return out
     }
     const text = fillText(ly.text, m.values)
     if (!text) return null
-    const key = JSON.stringify([ly, text])
+    const cw = designSize(m.scene)[0]
+    const key = JSON.stringify([ly, text, cw])
     const c = this.layers.get(ly.id)
     if (c?.key === key) return c.img
-    const out = renderTextLayer(ly, text)
+    const out = renderTextLayer(ly, text, cw)
     this.layers.set(ly.id, { key, img: out })
     return out
   }
@@ -438,6 +451,7 @@ export class Compositor {
     const decay = (len: number) =>
       moments.reduce((a, x) => a + (t >= x && t <= x + len ? 1 - (t - x) / len : 0), 0)
     const within = (len: number) => moments.some((x) => t >= x && t <= x + len)
+    const [W, H] = designSize(scene)
 
     ctx.setTransform(this.resolution, 0, 0, this.resolution, 0, 0)
     ctx.clearRect(0, 0, W, H)
@@ -540,7 +554,7 @@ export class Compositor {
           const bg = scene.regions.cam_bg
           const blur = BLUR_BACKGROUNDS[bg]
           if (blur) {
-            const px = Math.max(2, Math.min((blur * r.w) / W, r.w / 8, r.h / 8))
+            const px = Math.max(2, Math.min((blur * r.w) / 1080, r.w / 8, r.h / 8))
             const soft = (px * 0.6 * this.resolution).toFixed(1)
             ctx.filter = `${filter === 'none' ? '' : filter} blur(${soft}px) brightness(0.97)`
             ctx.drawImage(v, x * f, y * f, cw * f, ch * f, r.x, r.y, r.w, r.h)
@@ -560,8 +574,8 @@ export class Compositor {
 
     const frame = this.frameImage(scene)
     if (frame) ctx.drawImage(frame, 0, 0)
-    if (fx.speed_lines && within(0.45)) ctx.drawImage(speedLines(), 0, 0)
-    if (scene.captions.visible) drawCaptions(ctx, scene.captions, this.groups, this.kw, t)
+    if (fx.speed_lines && within(0.45)) ctx.drawImage(speedLines(W, H), 0, 0)
+    if (scene.captions.visible) drawCaptions(ctx, scene.captions, this.groups, this.kw, t, W, H)
 
     const bounds: Bounds[] = []
     for (const ly of scene.layers) {

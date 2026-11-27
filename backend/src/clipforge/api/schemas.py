@@ -16,7 +16,7 @@ from clipforge.db.enums import (
     ShortStatus,
     SourceStatus,
 )
-from clipforge.pipeline.render.scene import Captions, Scene
+from clipforge.pipeline.render.scene import Canvas, Captions, Scene
 
 
 class HealthOut(BaseModel):
@@ -251,6 +251,9 @@ class AnalyzeRequest(BaseModel):
 class RunRender(BaseModel):
     template: TemplateChoice = "auto"
     aspects: list[Literal["4:5", "1:1"]] = Field(default_factory=list)
+    canvas: Canvas | None = Field(
+        default=None, description="video size: a preset or any width x height (default 9:16)"
+    )
 
 
 class RunCreate(BaseModel):
@@ -369,6 +372,9 @@ class RenderRequest(BaseModel):
         default=None, description="deprecated: use template"
     )
     aspects: list[Literal["4:5", "1:1"]] | None = None
+    canvas: Canvas | None = Field(
+        default=None, description="video size (ignored when a full scene is sent: it has one)"
+    )
     caption_overrides: dict[str, str] | None = Field(
         default=None,
         description="word key (source start time, 2 decimals) -> new text; empty hides the word."
@@ -398,6 +404,13 @@ class OptionOut(BaseModel):
     label: str
 
 
+class CanvasPresetOut(BaseModel):
+    id: str
+    label: str
+    w: int
+    h: int
+
+
 class TemplateOut(BaseModel):
     id: str
     name: str
@@ -421,6 +434,12 @@ class RenderOptions(BaseModel):
     aspects: list[OptionOut]
     cam_backgrounds: list[OptionOut] = Field(
         default_factory=list, description="backgrounds behind the cut-out streamer"
+    )
+    canvases: list[CanvasPresetOut] = Field(
+        default_factory=list, description="video size presets (any size is allowed too)"
+    )
+    canvas_limits: dict[str, float] = Field(
+        default_factory=dict, description="min/max side in px and the largest side ratio"
     )
     encoder: str
 

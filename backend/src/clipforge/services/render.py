@@ -220,6 +220,8 @@ def resolve_scene(
         style = opts.get("style")
         if style and style != "template" and style in captions.STYLES:
             scene.captions = sc.caption_preset(style, y=scene.captions.y)
+        if opts.get("canvas"):  # a size chosen on Create / the render request
+            scene.canvas = sc.Canvas.model_validate(opts["canvas"])
     used, note = sc.resolve_template(scene.template, ctx.has_cam, ctx.cam_kind)
     if used != scene.template:
         scene = sc.switch_template(scene, used, ctx)
@@ -445,6 +447,11 @@ def render(job: JobContext, short_id: uuid.UUID, options: dict[str, Any]) -> dic
             sc.Scene.model_validate(opts["scene"])
         except ValueError as e:
             raise PermanentJobError(f"invalid scene: {e}") from None
+    if opts.get("canvas"):
+        try:
+            sc.Canvas.model_validate(opts["canvas"])
+        except ValueError as e:
+            raise PermanentJobError(f"invalid video size: {e}") from None
     info = _load(short_id)
     back = ShortStatus.review if info["had_render"] else ShortStatus.picked
     if "caption_overrides" not in opts:  # keep earlier caption fixes on a re-render

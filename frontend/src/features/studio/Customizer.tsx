@@ -20,7 +20,14 @@ import {
   VolumeX,
   Wand2,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type CSSProperties,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Card, Progress } from '@/components/ui'
 import {
@@ -37,7 +44,8 @@ import { useHistory, useStudio, useSwitchTemplate } from '@/lib/studio'
 import { cn, formatClock } from '@/lib/utils'
 import { Compositor } from './compositor'
 import { Segmented } from './controls'
-import { H, W, loadFonts, panels } from './draw'
+import { designSize, loadFonts, panels } from './draw'
+import { limitsOf } from './canvas'
 import { removeLayer, setLayer, type Edit } from './edit'
 import {
   AddPanel,
@@ -101,6 +109,12 @@ function Generate({ short }: { short: ShortDetail }) {
   )
 }
 
+/** The preview keeps the video's shape: as tall as the screen allows (760 px at most),
+ *  never wider than its column; the height follows from the aspect ratio. */
+function previewBox(w: number, h: number): CSSProperties {
+  return { aspectRatio: `${w} / ${h}`, width: `min(100%, calc(min(72vh, 760px) * ${w / h}))` }
+}
+
 export function Customizer({ short }: { short: ShortDetail }) {
   const studio = useStudio(short.id)
   const opts = useRenderOptions()
@@ -117,6 +131,8 @@ export function Customizer({ short }: { short: ShortDetail }) {
       templates={opts.data.templates}
       presets={opts.data.caption_presets as Edit['presets']}
       backgrounds={opts.data.cam_backgrounds ?? []}
+      canvases={opts.data.canvases ?? []}
+      canvasLimits={limitsOf(opts.data.canvas_limits)}
     />
   )
 }
@@ -128,6 +144,8 @@ function Editor({
   templates,
   presets,
   backgrounds,
+  canvases,
+  canvasLimits,
 }: {
   short: ShortDetail
   data: StudioData
@@ -135,12 +153,15 @@ function Editor({
   templates: Parameters<typeof TemplatePicker>[0]['templates']
   presets: Edit['presets']
   backgrounds: Edit['backgrounds']
+  canvases: Edit['canvases']
+  canvasLimits: Edit['canvasLimits']
 }) {
   const { t } = useTranslation()
   const cut = data.cut!
   const saved = data.scene as Scene
   const hist = useHistory<Scene>(saved)
   const scene = hist.value
+  const [W, H] = designSize(scene) // drawing units of this video size
   const [tab, setTab] = useState<Tab>('template')
   const [selected, setSelected] = useState<string | null>(null)
   const [time, setTime] = useState(0)
@@ -182,7 +203,7 @@ function Editor({
     box.style.top = `${(r.y / H) * 100}%`
     box.style.width = `${(r.w / W) * 100}%`
     box.style.height = `${(r.h / H) * 100}%`
-  }, [selected, scene])
+  }, [selected, scene, W, H])
 
   useEffect(() => {
     if (!canvasRef.current || !videoRef.current) return
@@ -278,6 +299,8 @@ function Editor({
     fonts,
     presets,
     backgrounds,
+    canvases,
+    canvasLimits,
     cutOut: !!cut.matte_asset_id && (cut.cam_kind === 'overlay' || cut.cam_kind === 'camera'),
   }
   const layer = scene.layers.find((l) => l.id === selected) ?? null
@@ -582,7 +605,11 @@ function Editor({
               },
             ]}
           />
-          <div className="relative aspect-[9/16] h-[min(72vh,760px)] max-w-full overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-border">
+          <div
+            className="relative max-w-full overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-border"
+            style={previewBox(scene.canvas?.w ?? W, scene.canvas?.h ?? H)}
+            data-testid="preview-box"
+          >
             <video
               ref={videoRef}
               src={mediaUrl(cut.preview_asset_id)}

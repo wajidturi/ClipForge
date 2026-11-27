@@ -2757,6 +2757,56 @@
         ],
         "title": "CandidateOut"
       },
+      "Canvas": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": ["9:16", "4:5", "1:1", "16:9", "4:3", "custom"],
+            "title": "Preset",
+            "default": "9:16"
+          },
+          "w": {
+            "type": "integer",
+            "maximum": 3840.0,
+            "minimum": 240.0,
+            "title": "W",
+            "default": 1080
+          },
+          "h": {
+            "type": "integer",
+            "maximum": 3840.0,
+            "minimum": 240.0,
+            "title": "H",
+            "default": 1920
+          }
+        },
+        "type": "object",
+        "title": "Canvas",
+        "description": "Output size of the video: one of the presets, or any width x height."
+      },
+      "CanvasPresetOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "w": {
+            "type": "integer",
+            "title": "W"
+          },
+          "h": {
+            "type": "integer",
+            "title": "H"
+          }
+        },
+        "type": "object",
+        "required": ["id", "label", "w", "h"],
+        "title": "CanvasPresetOut"
+      },
       "Captions": {
         "properties": {
           "visible": {
@@ -4182,6 +4232,22 @@
             "title": "Cam Backgrounds",
             "description": "backgrounds behind the cut-out streamer"
           },
+          "canvases": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasPresetOut"
+            },
+            "type": "array",
+            "title": "Canvases",
+            "description": "video size presets (any size is allowed too)"
+          },
+          "canvas_limits": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Canvas Limits",
+            "description": "min/max side in px and the largest side ratio"
+          },
           "encoder": {
             "type": "string",
             "title": "Encoder"
@@ -4278,6 +4344,17 @@
               }
             ],
             "title": "Aspects"
+          },
+          "canvas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Canvas"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "video size (ignored when a full scene is sent: it has one)"
           },
           "caption_overrides": {
             "anyOf": [
@@ -4708,6 +4785,17 @@
             },
             "type": "array",
             "title": "Aspects"
+          },
+          "canvas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Canvas"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "video size: a preset or any width x height (default 9:16)"
           }
         },
         "type": "object",
@@ -4785,6 +4873,17 @@
               }
             ],
             "title": "Aspects"
+          },
+          "canvas": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Canvas"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "video size (ignored when a full scene is sent: it has one)"
           },
           "caption_overrides": {
             "anyOf": [
@@ -4873,6 +4972,9 @@
             "type": "array",
             "maxItems": 40,
             "title": "Layers"
+          },
+          "canvas": {
+            "$ref": "#/components/schemas/Canvas"
           }
         },
         "type": "object",

@@ -15,6 +15,7 @@ from clipforge.api.schemas import (
     ActiveVersion,
     AIStatusOut,
     CandidateOut,
+    CanvasPresetOut,
     FontOut,
     OptionOut,
     RenderOptions,
@@ -247,6 +248,15 @@ async def render_options() -> RenderOptions:
             OptionOut(id="1:1", label="1:1 (square)"),
         ],
         cam_backgrounds=[OptionOut(id=k, label=v) for k, v in sc.CAM_BACKGROUNDS.items()],
+        canvases=[
+            CanvasPresetOut(id=k, label=lbl, w=w, h=h)
+            for k, (w, h, lbl) in sc.CANVAS_PRESETS.items()
+        ],
+        canvas_limits={
+            "min": sc.CANVAS_MIN,
+            "max": sc.CANVAS_MAX,
+            "ratio": sc.CANVAS_MAX_RATIO,
+        },
         encoder="GPU (NVENC)" if enc[1] == "h264_nvenc" else "CPU (x264)",
     )
 

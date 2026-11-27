@@ -5,8 +5,15 @@
  */
 import type { Layer, Scene } from '@/lib/api/client'
 
-export const W = 1080
+export const W = 1080 // default (9:16) design canvas
 export const H = 1920
+
+/** Like scene.design_size: the canvas everything is drawn on, short side 1080. */
+export function designSize(scene: Scene): [number, number] {
+  const c = scene.canvas ?? { w: W, h: H }
+  const k = 1080 / Math.min(c.w, c.h)
+  return [even(c.w * k), even(c.h * k)]
+}
 
 export type Rect = { x: number; y: number; w: number; h: number }
 type Ctx2D = CanvasRenderingContext2D
@@ -41,21 +48,26 @@ export const even = (v: number) => Math.max(2, Math.floor(Math.round(v) / 2) * 2
 export function panels(scene: Scene): Record<string, Rect> {
   const r = scene.regions
   const t = scene.template
+  const [W, H] = designSize(scene)
   const g = r.frame.style !== 'none' ? r.frame.gap : 0
   if (t === 'streamer_first' || t === 'gameplay_first' || t === 'dual_vision') {
-    const topH = even(H * r.split)
-    const top = { x: g, y: g, w: even(W - 2 * g), h: even(topH - g - g / 2) }
-    const bottom = {
-      x: g,
-      y: even(topH + g / 2),
-      w: even(W - 2 * g),
-      h: even(H - topH - g - g / 2),
+    let first: Rect
+    let second: Rect
+    if (W > H) {
+      // landscape: side by side, the first panel on the left
+      const leftW = even(W * r.split)
+      first = { x: g, y: g, w: even(leftW - g - g / 2), h: even(H - 2 * g) }
+      second = { x: even(leftW + g / 2), y: g, w: even(W - leftW - g - g / 2), h: even(H - 2 * g) }
+    } else {
+      const topH = even(H * r.split)
+      first = { x: g, y: g, w: even(W - 2 * g), h: even(topH - g - g / 2) }
+      second = { x: g, y: even(topH + g / 2), w: even(W - 2 * g), h: even(H - topH - g - g / 2) }
     }
-    return t === 'gameplay_first' ? { game: top, cam: bottom } : { cam: top, game: bottom }
+    return t === 'gameplay_first' ? { game: first, cam: second } : { cam: first, game: second }
   }
   const out: Record<string, Rect> = { game: { x: g, y: g, w: even(W - 2 * g), h: even(H - 2 * g) } }
   if (t === 'floating_facecam' && r.cam.visible) {
-    const side = even(W * r.cam.size)
+    const side = even(Math.min(W, H) * r.cam.size)
     out.cam = {
       x: Math.round(r.cam.x * W - side / 2),
       y: Math.round(r.cam.y * H - side / 2),
@@ -71,6 +83,16 @@ export const TILE_GAP = 8 // px between people sharing the facecam panel
 /** Like scene.cam_tiles: split the facecam panel into n side-by-side tiles. */
 export function camTiles(rect: Rect, n: number, gap = TILE_GAP): Rect[] {
   if (n <= 1) return n === 1 ? [rect] : []
+  if (rect.h > rect.w) {
+    // a tall panel (landscape layouts): one above the other
+    const h = even((rect.h - gap * (n - 1)) / n)
+    const rows: Rect[] = []
+    for (let i = 0; i < n - 1; i++)
+      rows.push({ x: rect.x, y: rect.y + i * (h + gap), w: rect.w, h })
+    const lastY = rect.y + (n - 1) * (h + gap)
+    rows.push({ x: rect.x, y: lastY, w: rect.w, h: even(rect.y + rect.h - lastY) })
+    return rows
+  }
   const w = even((rect.w - gap * (n - 1)) / n)
   const out: Rect[] = []
   for (let i = 0; i < n - 1; i++) out.push({ x: rect.x + i * (w + gap), y: rect.y, w, h: rect.h })
@@ -302,12 +324,12 @@ function finish(src: HTMLCanvasElement, italic: boolean, rotation: number, opaci
   return img
 }
 
-export function renderTextLayer(layer: Layer, rawText: string): HTMLCanvasElement {
+export function renderTextLayer(layer: Layer, rawText: string, canvasW = W): HTMLCanvasElement {
   const px = Math.max(8, Math.round(layer.size * layer.scale))
   const fontId = layer.kind === 'emoji' ? 'emoji' : layer.font
   const text = layer.upper && layer.kind === 'text' ? rawText.toUpperCase() : rawText
   const [, probe] = canvas(1, 1)
-  const lines = layoutLines(probe, text || ' ', fontId, px, layer.max_width * W)
+  const lines = layoutLines(probe, text || ' ', fontId, px, layer.max_width * canvasW)
   const lh = px * 1.1
   const tw = Math.max(...lines.map((l) => l.width))
   const th = lh * lines.length
@@ -376,8 +398,9 @@ export function renderTextLayer(layer: Layer, rawText: string): HTMLCanvasElemen
 export function renderImageLayer(
   layer: Layer,
   img: CanvasImageSource & { width: number; height: number },
+  canvasW = W,
 ) {
-  const w = Math.max(4, Math.round(layer.width * W * layer.scale))
+  const w = Math.max(4, Math.round(layer.width * canvasW * layer.scale))
   const h = Math.max(4, Math.round((img.height * w) / img.width))
   const [c, ctx] = canvas(w, h)
   ctx.imageSmoothingQuality = 'high'
@@ -422,8 +445,20 @@ function insetStroke(
 
 export function dividerPoints(scene: Scene): [number, number][] {
   const dv = scene.regions.divider
-  const yc = H * scene.regions.split
+  const [W, H] = designSize(scene)
   const half = dv.thickness / 2
+  if (W > H) {
+    // landscape: a vertical band
+    const xc = W * scene.regions.split
+    const dx = (Math.tan((dv.tilt * Math.PI) / 180) * H) / 2
+    return [
+      [xc - half + dx, -10],
+      [xc - half - dx, H + 10],
+      [xc + half - dx, H + 10],
+      [xc + half + dx, -10],
+    ]
+  }
+  const yc = H * scene.regions.split
   const dy = (Math.tan((dv.tilt * Math.PI) / 180) * W) / 2
   return [
     [-10, yc - half + dy],
@@ -433,9 +468,10 @@ export function dividerPoints(scene: Scene): [number, number][] {
   ]
 }
 
-let vignetteCache: HTMLCanvasElement | null = null
-function vignette(): HTMLCanvasElement {
-  if (vignetteCache) return vignetteCache
+const vignetteCache = new Map<string, HTMLCanvasElement>()
+function vignette(W: number, H: number): HTMLCanvasElement {
+  const hit = vignetteCache.get(`${W}x${H}`)
+  if (hit) return hit
   const [c, ctx] = canvas(W, H)
   const img = ctx.createImageData(W, H)
   for (let y = 0; y < H; y++) {
@@ -448,7 +484,7 @@ function vignette(): HTMLCanvasElement {
     }
   }
   ctx.putImageData(img, 0, 0)
-  vignetteCache = c
+  vignetteCache.set(`${W}x${H}`, c)
   return c
 }
 
@@ -459,6 +495,7 @@ export function frameCanvas(scene: Scene): HTMLCanvasElement | null {
   const fx = scene.effects
   const fr = r.frame
   const p = panels(scene)
+  const [W, H] = designSize(scene)
   const [c, ctx] = canvas(W, H)
   const stacked = ['streamer_first', 'gameplay_first', 'dual_vision'].includes(scene.template)
   let drew = false
@@ -506,13 +543,18 @@ export function frameCanvas(scene: Scene): HTMLCanvasElement | null {
     const dv = r.divider
     const pts = dividerPoints(scene)
     if (dv.style === 'line') {
-      const yc = H * r.split
-      const dy = (Math.tan((dv.tilt * Math.PI) / 180) * W) / 2
+      // the centre line of the band (like raster._divider)
+      const [a, b, cc, e] = pts as [
+        [number, number],
+        [number, number],
+        [number, number],
+        [number, number],
+      ]
       ctx.strokeStyle = dv.color
       ctx.lineWidth = Math.max(4, Math.floor(dv.thickness / 8))
       ctx.beginPath()
-      ctx.moveTo(0, yc + dy)
-      ctx.lineTo(W, yc - dy)
+      ctx.moveTo((a[0] + e[0]) / 2, (a[1] + e[1]) / 2)
+      ctx.lineTo((b[0] + cc[0]) / 2, (b[1] + cc[1]) / 2)
       ctx.stroke()
     } else {
       const poly = () => {
@@ -529,7 +571,8 @@ export function frameCanvas(scene: Scene): HTMLCanvasElement | null {
         ctx.fill()
         ctx.restore()
       }
-      const grad = ctx.createLinearGradient(0, 0, W, 0)
+      const grad =
+        W > H ? ctx.createLinearGradient(0, 0, 0, H) : ctx.createLinearGradient(0, 0, W, 0)
       grad.addColorStop(0, dv.color)
       grad.addColorStop(1, dv.color2)
       ctx.fillStyle = grad
@@ -554,15 +597,16 @@ export function frameCanvas(scene: Scene): HTMLCanvasElement | null {
     drew = true
   }
   if (fx.vignette) {
-    ctx.drawImage(vignette(), 0, 0)
+    ctx.drawImage(vignette(W, H), 0, 0)
     drew = true
   }
   return drew ? c : null
 }
 
-let speedCache: HTMLCanvasElement | null = null
-export function speedLines(): HTMLCanvasElement {
-  if (speedCache) return speedCache
+const speedCache = new Map<string, HTMLCanvasElement>()
+export function speedLines(W: number = 1080, H: number = 1920): HTMLCanvasElement {
+  const hit = speedCache.get(`${W}x${H}`)
+  if (hit) return hit
   const [c, ctx] = canvas(W, H)
   ctx.strokeStyle = 'rgba(255,255,255,0.59)'
   for (let k = 0; k < 64; k++) {
@@ -575,6 +619,6 @@ export function speedLines(): HTMLCanvasElement {
     ctx.lineTo(W / 2 + Math.cos(a) * r1, H / 2 + Math.sin(a) * r1)
     ctx.stroke()
   }
-  speedCache = c
+  speedCache.set(`${W}x${H}`, c)
   return c
 }

@@ -137,7 +137,11 @@ describe('Create page', () => {
       pick_mode: 'deep',
       topic: 'GTA 6',
       length: 'long',
-      render: { template: 'cinematic', aspects: [] },
+      render: {
+        template: 'cinematic',
+        aspects: [],
+        canvas: { preset: '9:16', w: 1080, h: 1920 },
+      },
       start: '5:00',
       end: '11:00',
     })

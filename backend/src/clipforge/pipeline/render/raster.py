@@ -23,7 +23,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from clipforge.pipeline.render.fonts import font_path
-from clipforge.pipeline.render.scene import H, Layer, Rect, Scene, W, panels
+from clipforge.pipeline.render.scene import H, Layer, Rect, Scene, W, design_size, panels
 
 RGBA = tuple[int, int, int, int]
 
@@ -176,13 +176,13 @@ def _shear_rotate(img: Image.Image, italic: bool, rotation: float) -> Image.Imag
     return img
 
 
-def render_text_layer(layer: Layer, text: str) -> Image.Image:
+def render_text_layer(layer: Layer, text: str, canvas_w: int = W) -> Image.Image:
     """A text/emoji layer as a tight RGBA image (centre = layer position)."""
     px = max(8, round(layer.size * layer.scale))
     font_id = "emoji" if layer.kind == "emoji" else layer.font
     if layer.upper and layer.kind == "text":
         text = text.upper()
-    lines = layout_lines(text or " ", font_id, px, layer.max_width * W)
+    lines = layout_lines(text or " ", font_id, px, layer.max_width * canvas_w)
     lh = px * 1.1
     tw = max(ln.width for ln in lines)
     th = lh * len(lines)
@@ -251,9 +251,9 @@ def render_text_layer(layer: Layer, text: str) -> Image.Image:
     return _opacity(img, layer.opacity)
 
 
-def render_image_layer(layer: Layer, path: Path) -> Image.Image:
+def render_image_layer(layer: Layer, path: Path, canvas_w: int = W) -> Image.Image:
     img = Image.open(path).convert("RGBA")
-    w = max(4, round(layer.width * W * layer.scale))
+    w = max(4, round(layer.width * canvas_w * layer.scale))
     h = max(4, round(img.height * w / img.width))
     img = img.resize((w, h), Image.Resampling.LANCZOS)
     img = _shear_rotate(img, False, layer.rotation)
@@ -307,10 +307,21 @@ def _glow_outline(
 
 
 def divider_points(scene: Scene) -> list[tuple[float, float]]:
-    """The dual-vision divider band: a slightly tilted quad across the split line."""
+    """The dual-vision divider band: a slightly tilted quad across the split line
+    (horizontal on portrait canvases, vertical on landscape ones)."""
     dv = scene.regions.divider
-    yc = H * scene.regions.split
+    W, H = design_size(scene)  # noqa: N806
     half = dv.thickness / 2
+    if W > H:
+        xc = W * scene.regions.split
+        dx = math.tan(math.radians(dv.tilt)) * H / 2
+        return [
+            (xc - half + dx, -10),
+            (xc - half - dx, H + 10),
+            (xc + half - dx, H + 10),
+            (xc + half + dx, -10),
+        ]
+    yc = H * scene.regions.split
     dy = math.tan(math.radians(dv.tilt)) * W / 2
     return [
         (-10, yc - half + dy),
@@ -322,10 +333,11 @@ def divider_points(scene: Scene) -> list[tuple[float, float]]:
 
 def frame_image(scene: Scene) -> Image.Image | None:
     """Background around panels, neon borders, the cam ring, the divider, letterbox
-    bars and the vignette, as one 1080x1920 RGBA overlay."""
+    bars and the vignette, as one RGBA overlay of the design canvas."""
     r, fx = scene.regions, scene.effects
     fr = r.frame
     p = panels(scene)
+    W, H = design_size(scene)  # noqa: N806
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     stacked = scene.template in ("streamer_first", "gameplay_first", "dual_vision")
     drew = False
@@ -365,7 +377,7 @@ def frame_image(scene: Scene) -> Image.Image | None:
         d.rectangle([0, H - bar, W, H], fill=(0, 0, 0, 255))
         drew = True
     if fx.vignette:
-        img.alpha_composite(_vignette())
+        img.alpha_composite(_vignette(W, H))
         drew = True
     return img if drew else None
 
@@ -373,16 +385,18 @@ def frame_image(scene: Scene) -> Image.Image | None:
 def _divider(img: Image.Image, scene: Scene) -> None:
     dv = scene.regions.divider
     pts = divider_points(scene)
+    W, H = design_size(scene)  # noqa: N806
     if dv.style == "line":
-        yc = H * scene.regions.split
-        dy = math.tan(math.radians(dv.tilt)) * W / 2
+        a, b, c, e = pts  # the centre line of the band
+        mid1 = ((a[0] + e[0]) / 2, (a[1] + e[1]) / 2)
+        mid2 = ((b[0] + c[0]) / 2, (b[1] + c[1]) / 2)
         d = ImageDraw.Draw(img)
-        d.line([(0, yc + dy), (W, yc - dy)], fill=rgba(dv.color), width=max(4, dv.thickness // 8))
+        d.line([mid1, mid2], fill=rgba(dv.color), width=max(4, dv.thickness // 8))
         return
     # horizontal gradient colour -> colour2, clipped to the band
     grad = np.zeros((H, W, 4), dtype=np.uint8)
     c1, c2 = np.array(rgba(dv.color), float), np.array(rgba(dv.color2), float)
-    ramp = np.linspace(0, 1, W)[None, :, None]
+    ramp = np.linspace(0, 1, H)[:, None, None] if W > H else np.linspace(0, 1, W)[None, :, None]
     grad[:] = (c1 * (1 - ramp) + c2 * ramp).astype(np.uint8)
     band = Image.new("L", (W, H), 0)
     ImageDraw.Draw(band).polygon(pts, fill=255)
@@ -395,11 +409,11 @@ def _divider(img: Image.Image, scene: Scene) -> None:
     img.alpha_composite(layer)
     d = ImageDraw.Draw(img)
     d.line([pts[0], pts[1]], fill=(255, 255, 255, 200), width=3)
-    d.line([pts[3], pts[2]], fill=(255, 255, 255, 200), width=3)
+    d.line([pts[3], pts[2]], fill=(255, 255, 255, 200), width=3)  # the band's long edges
 
 
-@lru_cache(maxsize=1)
-def _vignette() -> Image.Image:
+@lru_cache(maxsize=4)
+def _vignette(W: int = W, H: int = H) -> Image.Image:  # noqa: N803
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     dx, dy = (xx - W / 2) / (W / 2), (yy - H / 2) / (H / 2)
     d = np.sqrt(dx * dx + dy * dy) / math.sqrt(2)
@@ -421,7 +435,7 @@ def cam_mask(side: int, shape: str) -> Image.Image:
     return m
 
 
-def speed_lines() -> Image.Image:
+def speed_lines(W: int = W, H: int = H) -> Image.Image:  # noqa: N803
     """Radial streaks from the centre (deterministic: golden-angle spacing)."""
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)

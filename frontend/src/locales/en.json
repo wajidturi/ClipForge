@@ -219,7 +219,8 @@
     "rangeFromPh": "5:00",
     "rangeToPh": "11:00",
     "rangeClear": "Whole video",
-    "rangeHelp": "Pick moments only from this part, e.g. 5:00 – 11:00. Leave empty for the whole video. Times: mm:ss or h:mm:ss."
+    "rangeHelp": "Pick moments only from this part, e.g. 5:00 – 11:00. Leave empty for the whole video. Times: mm:ss or h:mm:ss.",
+    "canvasHelp": "Size of the videos. Change it per Short later in the studio."
   },
   "runs": {
     "title": "Picked moments (asked for {{n}})",
@@ -687,7 +688,12 @@
       "camBg": "Background behind the streamer",
       "camBgNone": "No streamer cut-out for this clip yet. Press “Render final video” once to prepare it, then pick a background. (Clips without a facecam have none.)",
       "camEnhance": "Sharpen & clarity",
-      "camEnhanceHelp": "Cleans noise, enlarges with a sharp filter and restores detail, so a small facecam stays crisp when zoomed in."
+      "camEnhanceHelp": "Cleans noise, enlarges with a sharp filter and restores detail, so a small facecam stays crisp when zoomed in.",
+      "splitWide": {
+        "streamer_first": "Facecam width",
+        "gameplay_first": "Gameplay width",
+        "dual_vision": "Left side size"
+      }
     },
     "shape": {
       "circle": "Circle",
@@ -877,5 +883,20 @@
     "clearFailed": "Couldn't clear the history. Try again.",
     "viewAll_one": "All jobs · {{count}} in history",
     "viewAll_other": "All jobs · {{count}} in history"
+  },
+  "canvas": {
+    "label": "Video size",
+    "custom": "Custom",
+    "customLabel": "Custom size",
+    "anySize": "any size",
+    "width": "Width",
+    "height": "Height",
+    "swap": "Swap width and height",
+    "customHelp": "Any size from {{min}} to {{max}} px; width and height may differ by up to {{ratio}}×. The preview follows as you type.",
+    "problem": {
+      "number": "Enter a width and a height in pixels.",
+      "range": "Use {{min}} to {{max}} px for each side.",
+      "ratio": "Width and height may differ by at most {{ratio}}× (e.g. 3840 × 960)."
+    }
   }
 }

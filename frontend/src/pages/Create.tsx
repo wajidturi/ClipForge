@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { Badge, Button, Card, CardHeader } from '@/components/ui'
 import { TemplatePicker } from '@/features/studio/TemplatePicker'
+import { CanvasPicker } from '@/features/studio/CanvasPicker'
+import { limitsOf, type CanvasValue } from '@/features/studio/canvas'
 import type { PickMode, TemplateChoice } from '@/lib/api/client'
 import { useAIStatus, useCreateRun, useRenderOptions, useRuns } from '@/lib/runs'
 import { useSources } from '@/lib/sources'
@@ -41,6 +43,7 @@ export function Create() {
   const [length, setLength] = useState<Length>('short')
   const [template, setTemplate] = useState<TemplateChoice>('auto')
   const [autoRender, setAutoRender] = useState(true)
+  const [canvas, setCanvas] = useState<CanvasValue>({ preset: '9:16', w: 1080, h: 1920 })
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const opts = useRenderOptions()
@@ -57,7 +60,7 @@ export function Create() {
         pick_mode: mode,
         topic: topic.trim() || null,
         length,
-        render: autoRender ? { template, aspects: [] } : null,
+        render: autoRender ? { template, aspects: [], canvas } : null,
         start: from.trim() || null,
         end: to.trim() || null,
       },
@@ -262,6 +265,17 @@ export function Create() {
                   templates={opts.data.templates}
                   withAuto
                 />
+                <div className="pt-2">
+                  <p className="mb-1 text-sm font-medium">{t('canvas.label')}</p>
+                  <p className="mb-2 text-xs text-muted">{t('create.canvasHelp')}</p>
+                  <CanvasPicker
+                    value={canvas}
+                    onChange={setCanvas}
+                    presets={opts.data.canvases ?? []}
+                    limits={limitsOf(opts.data.canvas_limits)}
+                    compact
+                  />
+                </div>
               </>
             )}
           </div>
