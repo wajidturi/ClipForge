@@ -30,6 +30,7 @@ from clipforge.core.logging import configure_logging, get_logger
 from clipforge.core.paths import ensure_data_dirs
 from clipforge.db import migrate
 from clipforge.db.session import get_sessionmaker
+from clipforge.jobs import queue
 from clipforge.services.repair import repair_orphans
 
 log = get_logger(__name__)
@@ -47,6 +48,22 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
         except Exception as e:  # never block start-up
             log.warning("repair.failed", error=str(e))
 
+    def _requeue() -> None:
+        try:
+            with get_sessionmaker()() as s:
+                if n := queue.requeue_expired(s):
+                    log.info("jobs.requeued", count=n)
+        except Exception as e:
+            log.warning("jobs.requeue_failed", error=str(e))
+
+    async def _lease_watch() -> None:
+        """Jobs whose worker died (app restart, crash) are put back in the queue here
+        too: busy workers only look for them between jobs, so they used to show as
+        "running" long after nothing was working on them."""
+        while True:
+            await asyncio.sleep(max(5.0, settings.job_lease_seconds / 4))
+            await asyncio.to_thread(_requeue)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         configure_logging(settings.log_level, settings.log_format)
@@ -55,8 +72,12 @@ def create_app(settings: Settings | None = None, *, run_migrations: bool = True)
             await asyncio.to_thread(migrate.upgrade, settings.resolved_database_url)
         await asyncio.to_thread(_repair)
         hub.start()
+        watcher = asyncio.create_task(_lease_watch())
         log.info("api.start", data_dir=str(settings.resolved_data_dir), version=__version__)
         yield
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watcher
         await hub.stop()
 
     app = FastAPI(

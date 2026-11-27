@@ -25,6 +25,18 @@ from clipforge.pipeline.ingest.timewin import Window
 
 ProgressFn = Callable[[float, str], None]
 THROTTLED_BYTES_S = 100_000  # a stream slower than 100 KB/s is treated as throttled
+# Time ranges are fetched by ffmpeg, whose network reads wait forever by default: a
+# YouTube connection that goes quiet left a render "fetching the video" for hours.
+# Give up a read after 30 s of silence and reconnect on dropped connections.
+FFMPEG_NET_ARGS = [
+    "-rw_timeout", "30000000",  # microseconds
+    "-reconnect", "1",
+    "-reconnect_streamed", "1",
+    "-reconnect_on_network_error", "1",
+    "-reconnect_delay_max", "10",
+]  # fmt: skip
+STALL_S = 150.0  # a section download whose file stops growing this long is restarted
+SECTION_ATTEMPTS = 2
 # Sections are streamed through ffmpeg over one connection (slow, easily throttled, no
 # progress). Up to this length that is still quick; longer parts of a video are faster
 # as a whole-file download (parallel, resumable, throttle-aware) cut locally.
@@ -142,6 +154,60 @@ def _deno_path() -> str | None:
     return str(local) if local.exists() else shutil.which("deno")
 
 
+class _StallGuard:
+    """Last line of defence for section downloads: when the partial file stops growing
+    for STALL_S, end the ffmpeg this process started for it (the download then fails
+    and is tried again) instead of waiting forever."""
+
+    def __init__(self, out_dir: Path, stem: str, stall_s: float = STALL_S) -> None:
+        import threading
+        import time
+
+        self.out_dir, self.stem, self.stall_s = out_dir, stem, stall_s
+        self.started = time.time()
+        self.done = threading.Event()
+        self.thread = threading.Thread(target=self._watch, daemon=True)
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def stop(self) -> None:
+        self.done.set()
+        self.thread.join(timeout=5)
+
+    def _size(self) -> int:
+        try:
+            return sum(p.stat().st_size for p in self.out_dir.glob(f"{self.stem}.*"))
+        except OSError:
+            return 0
+
+    def _watch(self) -> None:
+        import time
+
+        last, since = self._size(), time.monotonic()
+        while not self.done.wait(5):
+            size = self._size()
+            if size != last:
+                last, since = size, time.monotonic()
+            elif time.monotonic() - since > self.stall_s:
+                self._kill_ffmpeg()
+                since = time.monotonic()
+
+    def _kill_ffmpeg(self) -> None:
+        import psutil
+
+        try:
+            kids = psutil.Process().children(recursive=True)
+        except psutil.Error:
+            return
+        for k in kids:
+            try:
+                if "ffmpeg" in k.name().lower() and k.create_time() >= self.started - 1:
+                    k.kill()
+            except psutil.Error:
+                pass
+
+
 class Downloader:
     def __init__(
         self,
@@ -170,6 +236,7 @@ class Downloader:
             # YouTube sometimes throttles one session to a few KB/s; below this rate
             # yt-dlp fetches fresh stream URLs and continues instead of crawling.
             "throttledratelimit": THROTTLED_BYTES_S,
+            "external_downloader_args": {"ffmpeg_i": FFMPEG_NET_ARGS},
             "consoletitle": False,
             "color": {"stdout": "never", "stderr": "never"},
         }
@@ -359,4 +426,16 @@ class Downloader:
             "force_keyframes_at_cuts": True,
             "progress_hooks": [self._hook(progress, is_cancelled)],
         }
-        return self._download(url, out_dir, stem, log, self._opts(log, **extra))
+        for attempt in range(1, SECTION_ATTEMPTS + 1):
+            guard = _StallGuard(out_dir, stem)
+            guard.start()
+            try:
+                return self._download(url, out_dir, stem, log, self._opts(log, **extra))
+            except DownloadError:
+                if attempt == SECTION_ATTEMPTS or (is_cancelled and is_cancelled()):
+                    raise
+                if progress:
+                    progress(-1, "the download stalled: trying again")
+            finally:
+                guard.stop()
+        raise AssertionError("unreachable")

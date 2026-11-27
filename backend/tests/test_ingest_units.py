@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yt_dlp
 from yt_dlp.utils import DownloadCancelled
 
 from clipforge.db.enums import Platform
@@ -272,6 +273,51 @@ def test_downloader_section_options(tmp_path: Path) -> None:
     opts = FakeYDL.instances[-1].opts
     assert opts["force_keyframes_at_cuts"] and opts["merge_output_format"] == "mp4"
     assert "height<=2160" in opts["format"]  # 4K moments: sharp 9:16 crops
+
+
+def test_section_downloads_cannot_hang_forever(tmp_path: Path) -> None:
+    """Real bug: ffmpeg waited on a silent YouTube connection for 47 minutes."""
+    FakeYDL.instances.clear()
+    Downloader(ydl_factory=FakeYDL).download_section("https://youtu.be/x", tmp_path, 100, 130)
+    args = FakeYDL.instances[-1].opts["external_downloader_args"]["ffmpeg_i"]
+    assert args[args.index("-rw_timeout") + 1] == "30000000"  # 30 s without data -> error
+    assert "-reconnect_on_network_error" in args
+
+
+class FlakyYDL(FakeYDL):
+    """Fails the first download like a stalled ffmpeg, then works."""
+
+    def download(self, urls: list[str]) -> int:
+        if len(FakeYDL.instances) == 1:
+            raise yt_dlp.utils.DownloadError("ffmpeg exited with code 1")
+        return super().download(urls)
+
+
+def test_a_stalled_section_download_is_tried_again(tmp_path: Path) -> None:
+    FakeYDL.instances.clear()
+    seen: list[str] = []
+    path = Downloader(ydl_factory=FlakyYDL).download_section(
+        "https://youtu.be/x", tmp_path, 100, 130, progress=lambda p, s: seen.append(s)
+    )
+    assert path.exists() and len(FakeYDL.instances) == 2
+    assert any("stalled" in s for s in seen)
+
+
+def test_stall_guard_ends_ffmpeg_when_the_file_stops_growing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from clipforge.pipeline.ingest import downloader as dl
+
+    killed: list[int] = []
+    monkeypatch.setattr(dl._StallGuard, "_kill_ffmpeg", lambda self: killed.append(1))
+    (tmp_path / "seg.mp4.part").write_bytes(b"x")
+    g = dl._StallGuard(tmp_path, "seg", stall_s=0.1)
+    g.start()
+    import time
+
+    time.sleep(5.5)  # the guard looks every 5 s
+    g.stop()
+    assert killed
 
 
 def test_fetch_info(tmp_path: Path) -> None:

@@ -313,3 +313,28 @@ def test_repair_frees_items_no_job_is_working_on(db: Session) -> None:
     assert db.get(Source, src).status == SourceStatus.failed  # type: ignore[union-attr]
     assert db.get(Run, run.id).status == RunStatus.failed  # type: ignore[union-attr]
     assert repair_orphans(db) == 0
+
+
+def test_api_requeues_jobs_of_a_dead_worker(db: Session) -> None:
+    """Real bug: after a restart, jobs of the old workers showed "running" for many
+    minutes because only an idle worker looked for expired leases."""
+    import asyncio
+    from datetime import timedelta
+
+    from clipforge.db.base import utcnow
+
+    job = queue.enqueue(db, "system.selftest")
+    db.commit()
+    queue.lease(db, "gone", ("cpu",), 60)
+    j = queue.get(db, job.id)
+    j.lease_until = utcnow() - timedelta(seconds=5)
+    db.commit()
+    app = create_app(Settings(job_lease_seconds=5))
+
+    async def run() -> None:
+        async with app.router.lifespan_context(app):
+            await asyncio.sleep(5.5)
+
+    asyncio.run(run())
+    db.expire_all()
+    assert queue.get(db, job.id).status == JobStatus.queued
