@@ -259,8 +259,12 @@ class RunRender(BaseModel):
 class RunCreate(BaseModel):
     source_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
     n: int = Field(default=5, ge=1, le=50, description="how many Shorts to pick")
-    pick_mode: Literal["free", "smart", "deep", "whole"] = Field(
-        default="smart", description="whole = each (short) source becomes one Short"
+    pick_mode: Literal["free", "smart", "deep", "whole", "custom"] = Field(
+        default="smart",
+        description=(
+            "smart = AI picks moments of the chosen length; deep = whole action scenes, "
+            "any length; custom = exactly start..end; whole = each short source as one Short"
+        ),
     )
     render: RunRender | None = Field(
         default=None, description="render the picks right away with this template"

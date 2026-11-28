@@ -95,3 +95,4 @@ def offline_cutout_model(request: pytest.FixtureRequest, monkeypatch: pytest.Mon
         raise OSError("offline in tests")
 
     monkeypatch.setattr("clipforge.pipeline.signals.vision.ensure_segment_model", offline)
+    monkeypatch.setattr("clipforge.pipeline.render.camhd.ensure_model", offline)

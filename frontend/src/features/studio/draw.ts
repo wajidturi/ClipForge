@@ -63,7 +63,10 @@ export function panels(scene: Scene): Record<string, Rect> {
       first = { x: g, y: g, w: even(W - 2 * g), h: even(topH - g - g / 2) }
       second = { x: g, y: even(topH + g / 2), w: even(W - 2 * g), h: even(H - topH - g - g / 2) }
     }
-    return t === 'gameplay_first' ? { game: first, cam: second } : { cam: first, game: second }
+    return placed(
+      scene,
+      t === 'gameplay_first' ? { game: first, cam: second } : { cam: first, game: second },
+    )
   }
   const out: Record<string, Rect> = { game: { x: g, y: g, w: even(W - 2 * g), h: even(H - 2 * g) } }
   if (t === 'floating_facecam' && r.cam.visible) {
@@ -75,7 +78,46 @@ export function panels(scene: Scene): Record<string, Rect> {
       h: side,
     }
   }
+  return placed(scene, out)
+}
+
+export type Spot = { x: number; y: number; w: number; h: number }
+
+/** Like scene.spot_rect: a freely placed panel (fractions of the video) in pixels. */
+export function spotRect(sp: Spot, W: number, H: number): Rect {
+  return {
+    x: Math.round(sp.x * W),
+    y: Math.round(sp.y * H),
+    w: Math.max(16, even(sp.w * W)),
+    h: Math.max(16, even(sp.h * H)),
+  }
+}
+
+/** The panels after the studio's free layout (regions.place), like scene.panels. */
+function placed(scene: Scene, out: Record<string, Rect>): Record<string, Rect> {
+  const pl = scene.regions.place
+  if (!pl) return out
+  const [W, H] = designSize(scene)
+  if (pl.game) out.game = spotRect(pl.game, W, H)
+  if (pl.cam && out.cam && scene.template !== 'floating_facecam') out.cam = spotRect(pl.cam, W, H)
   return out
+}
+
+/** Like scene.free_layout: has the user moved a panel? */
+export function freeLayout(scene: Scene): boolean {
+  const pl = scene.regions.place
+  return !!pl && (!!pl.game || !!pl.cam)
+}
+
+/** A panel rect back to a Spot (fractions), within the model's limits. */
+export function toSpot(r: Rect, W: number, H: number): Spot {
+  const c = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+  return {
+    x: c(r.x / W, -0.9, 0.9),
+    y: c(r.y / H, -0.9, 0.9),
+    w: c(r.w / W, 0.1, 1.5),
+    h: c(r.h / H, 0.1, 1.5),
+  }
 }
 
 export const TILE_GAP = 8 // px between people sharing the facecam panel
@@ -539,7 +581,7 @@ export function frameCanvas(scene: Scene): HTMLCanvasElement | null {
     )
     drew = true
   }
-  if (scene.template === 'dual_vision' && r.divider.style !== 'none') {
+  if (scene.template === 'dual_vision' && r.divider.style !== 'none' && !freeLayout(scene)) {
     const dv = r.divider
     const pts = dividerPoints(scene)
     if (dv.style === 'line') {

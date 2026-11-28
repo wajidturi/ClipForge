@@ -13,6 +13,10 @@
 
 Python 3.12 is installed by uv (`uv python install 3.12`); you do not need a system Python.
 
+On Windows the backend installs `onnxruntime-directml` instead of plain `onnxruntime`
+(set in `backend/pyproject.toml`), so the HD facecam upscaler runs on any DirectX 12 GPU.
+Its model (Real-ESRGAN, ~5 MB) is downloaded on the first render that needs it.
+
 > **Windows path length:** keep the project in a short path (e.g. `Desktop\ClipForge`). Python on Windows cannot read files whose full path exceeds 260 characters unless long paths are enabled system-wide, and deep virtual-env folders hit that limit quickly.
 
 ## 2. One-time setup

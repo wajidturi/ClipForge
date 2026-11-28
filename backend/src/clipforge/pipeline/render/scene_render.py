@@ -22,6 +22,7 @@ from typing import Any
 
 from clipforge.core import ffmpeg
 from clipforge.pipeline.render import captions, compose, raster
+from clipforge.pipeline.render.camhd import HDRegion, hd_crop
 from clipforge.pipeline.render.edl import CaptionWord
 from clipforge.pipeline.render.effects import audio_chain, zoom_expression
 from clipforge.pipeline.render.matte import matte_crop
@@ -65,6 +66,14 @@ class CutPlan:
     cam_kind: str = "overlay"
     matte: Path | None = None  # person cut-out video (pipeline/render/matte.py)
     matte_size: tuple[int, int] = (0, 0)
+    # per entry of `cams`: the AI-upscaled facecam video and its region (camhd.py)
+    camhd: list[tuple[Path, HDRegion] | None] = field(default_factory=list)
+
+    def hd_for(self, cam: Box) -> tuple[Path, HDRegion] | None:
+        if cam not in self.cams:
+            return None
+        i = self.cams.index(cam)
+        return self.camhd[i] if i < len(self.camhd) else None
 
     def cam_list(self, template: str) -> list[Box]:
         """What the facecam panel shows: everyone side by side in stacked templates,
@@ -154,6 +163,14 @@ def _game_chain(plan: CutPlan, rect: Rect, fit: str, label: str, src: str) -> li
 # HDR look (Instagram-style pop): more local contrast, richer colour, a touch of clarity.
 # Studio preview approximation: compositor.ts COLOR_FILTERS.hdr
 HDR = "eq=contrast=1.1:saturation=1.3:gamma=0.96:brightness=0.015,unsharp=7:7:0.55:5:5:0"
+
+
+def hd_look(w: int, h: int) -> str:
+    """The AI-upscaled cam already has its detail: fit it and finish lightly."""
+    return (
+        f"scale={w}:{h}:flags=lanczos,setsar=1,"
+        "unsharp=5:5:0.35:3:3:0,eq=contrast=1.04:saturation=1.06"
+    )
 
 
 def cam_look(w: int, h: int, enhance: bool) -> str:
@@ -268,7 +285,16 @@ def build_graph(
             (cam.x, cam.y, cam.w, cam.h), r.w / r.h, plan.src_w, plan.src_h, CAM_MAX_GROW
         )
         x, y, cw, ch = rect
-        g.append(f"[sc{i}]crop={cw}:{ch}:{x}:{y},{cam_look(r.w, r.h, reg.cam_enhance)}[cc{i}]")
+        hd = plan.hd_for(cam) if reg.cam_enhance else None
+        hq = hd_crop(rect, hd[1]) if hd else None
+        if hd and hq:
+            hd_in = add_input(["-i", str(hd[0])])
+            hx, hy, hw, hh = hq
+            g.append(f"[sc{i}]nullsink")
+            g.append(f"{hd_in}fps={FPS},crop={hw}:{hh}:{hx}:{hy},{hd_look(r.w, r.h)}[cc{i}]")
+        else:
+            look = cam_look(r.w, r.h, reg.cam_enhance)
+            g.append(f"[sc{i}]crop={cw}:{ch}:{x}:{y},{look}[cc{i}]")
         if swap:
             qx, qy, qw, qh = matte_crop(rect, plan.src_w, plan.src_h, *plan.matte_size)
             g.append(

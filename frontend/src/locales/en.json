@@ -172,11 +172,11 @@
     "modes": {
       "smart": {
         "name": "Smart",
-        "help": "AI reads the best candidate moments and writes hooks and titles."
+        "help": "AI finds the clips most likely to go viral, at the length you choose."
       },
       "deep": {
         "name": "Deep",
-        "help": "AI reads more candidates with their full text. Slower, more thorough."
+        "help": "AI goes through the whole video and finds complete action scenes (driving, shooting, police chases), each kept whole however long it runs."
       },
       "free": {
         "name": "No AI",
@@ -185,9 +185,13 @@
       "whole": {
         "name": "Whole clip",
         "help": "For short clips you uploaded: each clip becomes one Short (longer videos: best moment)."
+      },
+      "custom": {
+        "name": "Custom",
+        "help": "Type an exact time range and get that whole part as one clip."
       }
     },
-    "count": "How many Shorts",
+    "count": "How many clips",
     "length": "Length",
     "lengths": {
       "short": {
@@ -213,14 +217,16 @@
     "startRender": "Pick {{n}} moments and generate",
     "startWhole_one": "Generate 1 Short",
     "startWhole_other": "Generate {{count}} Shorts",
-    "range": "Time range (optional)",
-    "rangeFrom": "From",
-    "rangeTo": "To",
-    "rangeFromPh": "5:00",
-    "rangeToPh": "11:00",
-    "rangeClear": "Whole video",
-    "rangeHelp": "Pick moments only from this part, e.g. 5:00 – 11:00. Leave empty for the whole video. Times: mm:ss or h:mm:ss.",
-    "canvasHelp": "Size of the videos. Change it per Short later in the studio."
+    "range": "Time range",
+    "rangeFrom": "Start time",
+    "rangeTo": "End time",
+    "rangeFromPh": "02:33:58",
+    "rangeToPh": "02:35:15",
+    "rangeHelp": "HH:MM:SS, e.g. 02:33:58 to 02:35:15 (MM:SS works too). The clip runs exactly from start to end, up to 20 minutes.",
+    "canvasHelp": "Size of the videos. Change it per Short later in the studio.",
+    "startDeep": "Find {{n}} action scenes and generate",
+    "startCustom_one": "Generate the clip",
+    "startCustom_other": "Generate {{count}} clips (one per source)"
   },
   "runs": {
     "title": "Picked moments (asked for {{n}})",
@@ -693,7 +699,10 @@
         "streamer_first": "Facecam width",
         "gameplay_first": "Gameplay width",
         "dual_vision": "Left side size"
-      }
+      },
+      "free": "Position",
+      "freeHelp": "Drag the gameplay or the streamer in the preview to move them anywhere; drag a corner to resize. Arrow keys nudge the selected one (Shift: bigger steps).",
+      "freeReset": "Reset to template"
     },
     "shape": {
       "circle": "Circle",

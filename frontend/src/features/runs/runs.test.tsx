@@ -123,18 +123,16 @@ describe('Create page', () => {
     expect(start).toBeDisabled()
     await userEvent.click(screen.getByRole('checkbox', { name: /huge reaction/i }))
     await userEvent.click(await screen.findByRole('radio', { name: /cinematic gaming/i }))
-    await userEvent.click(screen.getByRole('radio', { name: /deep/i }))
     await userEvent.click(screen.getByRole('radio', { name: /whole scenes/i }))
     await userEvent.type(screen.getByLabelText('Topic'), 'GTA 6')
-    await userEvent.type(screen.getByLabelText('From'), '5:00')
-    await userEvent.type(screen.getByLabelText('To'), '11:00')
+    expect(screen.queryByLabelText('Start time')).not.toBeInTheDocument() // custom only
     await userEvent.click(start)
     expect(await screen.findByText('KAI JUMPS THE BRIDGE')).toBeInTheDocument() // navigated to the run
     const post = api.calls.find((c) => c.method === 'POST')
     expect(post?.body).toEqual({
       source_ids: [READY.id],
       n: 5,
-      pick_mode: 'deep',
+      pick_mode: 'smart',
       topic: 'GTA 6',
       length: 'long',
       render: {
@@ -142,9 +140,51 @@ describe('Create page', () => {
         aspects: [],
         canvas: { preset: '9:16', w: 1080, h: 1920 },
       },
-      start: '5:00',
-      end: '11:00',
+      start: null,
+      end: null,
     })
+  })
+
+  it('offers exactly three ways to pick and sends a custom range', async () => {
+    const api = mockApi([
+      { method: 'GET', path: /\/sources$/, handler: () => ({ items: [READY], next_cursor: null }) },
+      { method: 'GET', path: /\/runs$/, handler: () => [] },
+      {
+        method: 'GET',
+        path: /\/render\/options$/,
+        handler: () => ({
+          styles: [],
+          templates: TEMPLATES,
+          fonts: [],
+          caption_presets: {},
+          aspects: [],
+          encoder: 'x',
+        }),
+      },
+      { method: 'POST', path: /\/runs$/, status: 201, handler: () => RUN },
+      { method: 'GET', path: /\/runs\/.+/, handler: () => RUN },
+    ])
+    renderAt('/create')
+    await userEvent.click(await screen.findByRole('checkbox', { name: /huge reaction/i }))
+    const group = screen.getAllByRole('radiogroup')[0]!
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual([
+      expect.stringMatching(/^Smart/),
+      expect.stringMatching(/^Deep/),
+      expect.stringMatching(/^Custom/),
+    ])
+    await userEvent.click(within(group).getByRole('radio', { name: /custom/i }))
+    const go = screen.getByRole('button', { name: /generate the clip/i })
+    expect(go).toBeDisabled() // needs both times
+    await userEvent.type(screen.getByLabelText('Start time'), '02:33:58')
+    await userEvent.type(screen.getByLabelText('End time'), '02:35:15')
+    await userEvent.click(go)
+    await screen.findByText('KAI JUMPS THE BRIDGE')
+    const post = api.calls.find((c) => c.method === 'POST')
+    expect(post?.body).toMatchObject({ pick_mode: 'custom', start: '02:33:58', end: '02:35:15' })
   })
 })
 

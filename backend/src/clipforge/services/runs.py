@@ -26,7 +26,7 @@ from clipforge.ai.base import AIError, Usage
 from clipforge.ai.registry import make_provider
 from clipforge.core.logging import get_logger
 from clipforge.db.base import utcnow
-from clipforge.db.enums import RunStatus, ShortFormat, ShortStatus, SourceStatus
+from clipforge.db.enums import RunStatus, ShortFormat, ShortStatus, SignalType, SourceStatus
 from clipforge.db.models import (
     Candidate as CandidateRow,
 )
@@ -37,6 +37,7 @@ from clipforge.db.models import (
     Segment,
     Short,
     ShortPart,
+    Signal,
     Source,
     Transcript,
 )
@@ -45,16 +46,21 @@ from clipforge.jobs import queue
 from clipforge.jobs.registry import JobContext, PermanentJobError
 from clipforge.pipeline.ingest.timewin import InvalidTimeError, make_window
 from clipforge.pipeline.selection import Candidate, Pick, Sent
+from clipforge.pipeline.selection import scenes as scene_sel
 from clipforge.pipeline.selection.ai_picker import ai_picks
 from clipforge.pipeline.selection.callbacks import find_callbacks
 from clipforge.pipeline.selection.heuristic import heuristic_picks
 from clipforge.pipeline.selection.validate import validate
 from clipforge.pipeline.selection.windows import LENGTHS, LengthPreset, build_candidates
-from clipforge.services import settings_store, versions
+from clipforge.services import analyze, settings_store, versions
 
 log = get_logger(__name__)
 
-PickMode = Literal["free", "smart", "deep", "whole"]
+PickMode = Literal["free", "smart", "deep", "whole", "custom"]
+# Modes that pick on their own (not from speech windows): deep = whole action scenes,
+# custom = exactly the range the user typed.
+OWN_PICKERS = ("deep", "custom")
+CUSTOM_MAX_S = 20 * 60
 SELECT_JOB = "run.select"
 INACTIVE = (ShortStatus.rejected, ShortStatus.dropped)
 
@@ -82,13 +88,22 @@ def create_run(
         win = make_window(start, end)
     except InvalidTimeError as e:
         raise RunInputError(str(e)) from None
+    if pick_mode == "custom":
+        if win is None or win.end_s is None or not start:
+            raise RunInputError("enter a start and an end time, e.g. 02:33:58 to 02:35:15")
+        if win.end_s - win.start_s > CUSTOM_MAX_S:
+            raise RunInputError("a custom clip can be at most 20 minutes long")
     srcs = db.scalars(select(Source).where(Source.id.in_(source_ids))).all()
     if len(srcs) != len(set(source_ids)):
         raise RunInputError("some sources do not exist")
     not_ready = [s.title or s.url for s in srcs if s.status != SourceStatus.ready]
     if not_ready:
         raise RunInputError(f"not analysed yet: {', '.join(not_ready[:3])}")
-    if win is not None:
+    if pick_mode == "custom" and win is not None:
+        late = [s.title or s.url for s in srcs if s.duration_s and win.start_s >= s.duration_s]
+        if late:
+            raise RunInputError(f"the start time is after the end of: {', '.join(late[:3])}")
+    elif win is not None:
         outside = [s.title or s.url for s in srcs if not _range_overlaps(s, win.start_s, win.end_s)]
         if outside:
             raise RunInputError(
@@ -120,6 +135,10 @@ def create_run(
         label=(
             "Use the whole clips"
             if pick_mode == "whole"
+            else "Cut the chosen time range"
+            if pick_mode == "custom"
+            else f"Find {n} action scene{'s' if n > 1 else ''}"
+            if pick_mode == "deep"
             else f"Pick {n} moment{'s' if n > 1 else ''} ({pick_mode})"
         ),
         # AI runs share the GPU with transcription: keep them on the ml worker.
@@ -230,6 +249,139 @@ def whole_picks(
     return out
 
 
+def _scene_marks(
+    s: Session, source_id: uuid.UUID
+) -> tuple[list[float], list[tuple[float, float, str]]]:
+    rows = s.execute(
+        select(Signal.type, Signal.start_s, Signal.end_s, Signal.meta).where(
+            Signal.source_id == source_id
+        )
+    ).all()
+    cuts = [a for t, a, _, _ in rows if t == SignalType.cut]
+    marks = [
+        (a, b, str((meta or {}).get("kind") or t)) for t, a, b, meta in rows if t != SignalType.cut
+    ]
+    return cuts, marks
+
+
+def _span(cid: int, sid: str, a: float, b: float, score: float, lst: list[Sent],
+          tags: list[str]) -> Candidate:  # fmt: skip
+    inside = [x for x in lst if x.end > a and x.start < b]
+    hot = max(inside, key=lambda x: x.heat) if inside else None
+    return Candidate(
+        id=cid,
+        source_id=sid,
+        start=a,
+        end=b,
+        score=score,
+        first=inside[0].idx if inside else 0,
+        last=inside[-1].idx if inside else 0,
+        peak=hot.start if hot else a,
+        tags=sorted(set(tags) | {t for x in inside for t in x.tags}),
+        head=inside[0].text if inside else "",
+        tail=inside[-1].text if inside else "",
+        text=" ".join(x.text for x in inside),
+    )
+
+
+def own_candidates(
+    mode: str,
+    srcs: dict[str, Source],
+    sents: dict[str, list[Sent]],
+    used: dict[str, list[tuple[float, float]]],
+    rng: list[float | None] | None,
+    settings: Any,
+) -> list[Candidate]:
+    """Deep: the action scenes of every source; custom: the typed range per source."""
+    out: list[Candidate] = []
+    for sid, src in srcs.items():
+        lst = sents.get(sid, [])
+        if mode == "custom":
+            assert rng is not None
+            a, b = float(rng[0] or 0.0), float(rng[1] or 0.0)
+            if src.duration_s:
+                b = min(b, src.duration_s)
+            if b - a >= 1:
+                score = max((x.heat for x in lst), default=50.0)
+                out.append(_span(len(out) + 1, sid, a, b, score, lst, ["custom"]))
+            continue
+        act = scene_sel.activity_from_curves(analyze.load_curves(settings, uuid.UUID(sid)))
+        if act is None:
+            continue
+        with get_sessionmaker()() as s:
+            cuts, marks = _scene_marks(s, uuid.UUID(sid))
+        window = (float(rng[0] or 0.0), rng[1]) if rng else None
+        for sc in scene_sel.find_scenes(
+            act, cuts=cuts, spikes=marks, window=window, exclude=used.get(sid)
+        ):
+            out.append(_span(len(out) + 1, sid, sc.start, sc.end, sc.score, lst, sc.kinds))
+    out.sort(key=lambda c: -c.score)
+    for i, c in enumerate(out, start=1):
+        c.id = i
+    return out
+
+
+def write_up(
+    provider: Any,
+    pool: list[Candidate],
+    *,
+    n: int,
+    per_source: int,
+    credits: dict[str, str | None],
+    titles: dict[str, str],
+    topic: str | None,
+    timeout: float,
+) -> tuple[list[Pick], Usage, list[str]]:
+    """Choose among ready-made spans (best first) and write their texts. The spans stay
+    exactly as found: the AI may not trim a scene or a typed range."""
+    notes: list[str] = []
+    usage = Usage(provider="none", model="action scenes")
+    by_id = {c.id: c for c in pool}
+    picks: list[Pick] = []
+    if provider is not None:
+        ask = pool[: max(3 * n, 12)]
+        try:
+            picks, usage, notes = ai_picks(
+                provider,
+                ask,
+                n=n,
+                credits=credits,
+                topic=topic,
+                deep=True,
+                timeout=timeout,
+                length=(min(c.duration for c in ask), max(c.duration for c in ask)),
+            )
+        except AIError as e:
+            notes.append(f"AI unavailable, used signal scores instead: {e}")
+    per: dict[str, int] = {}
+    out: list[Pick] = []
+
+    def take(p: Pick, c: Candidate) -> None:
+        p.start, p.end, p.candidate_id = c.start, c.end, c.id
+        per[c.source_id] = per.get(c.source_id, 0) + 1
+        out.append(p)
+
+    for p in picks:
+        c = by_id.get(p.candidate_id or -1)
+        fits = c is not None and len(out) < n and per.get(c.source_id, 0) < per_source
+        if c is not None and fits and all(q.candidate_id != c.id for q in out):
+            take(p, c)
+    taken = {p.candidate_id for p in out}
+    for c in pool:  # best first: top up with the strongest remaining scenes
+        if len(out) >= n:
+            break
+        if c.id in taken or per.get(c.source_id, 0) >= per_source:
+            continue
+        p = heuristic_picks([c], n=1, credit_for=credits)[0]
+        if not c.text:  # nothing said in it: name the scene instead
+            name = titles.get(c.source_id) or "Action scene"
+            p.hook, p.keywords, p.hashtags = "WAIT FOR IT", [], []
+            p.title = f"{p.credit}: {name}" if p.credit and p.credit not in name else name
+        p.reason = "action scene: " + (", ".join(c.tags) or "motion")
+        take(p, c)
+    return out, usage, notes
+
+
 def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     settings = settings_store.effective()
     with get_sessionmaker()() as s:
@@ -255,9 +407,9 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     warnings: list[str] = []
 
     ctx.progress(5, "finding candidate moments")
-    k = max(settings.candidates_k, 2 * n) * (2 if mode == "deep" else 1)
+    k = max(settings.candidates_k, 2 * n)
     pool: list[Candidate] = []
-    for sid, lst in sents.items():
+    for sid, lst in sents.items() if mode not in OWN_PICKERS else ():
         if not lst:
             what = "in the chosen time range" if rng else ""
             warnings.append(f"{srcs[sid].title or sid}: no transcript sentences {what}".strip())
@@ -276,6 +428,17 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
     pool = pool[:k]
     for i, c in enumerate(pool, start=1):
         c.id = i
+    if mode in OWN_PICKERS:
+        ctx.progress(15, "finding action scenes" if mode == "deep" else "cutting the range")
+        pool = own_candidates(mode, srcs, sents, used, rng, settings)
+        if not pool:
+            msg = (
+                "No action scenes found: analyse the source with “Analyse the picture” on."
+                if mode == "deep"
+                else "The chosen time range is outside the video."
+            )
+            _set_run(run_id, status=RunStatus.failed, finished_at=utcnow(), error=msg)
+            raise PermanentJobError(msg)
     if not pool and not (mode == "whole" and any(sents.values())):
         _set_run(
             run_id,
@@ -296,6 +459,23 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
         usage = Usage(provider="none", model="whole clip")
         accepted, provider = whole_picks(pool, sents, credits), None
         rejected: list[Pick] = []
+    elif mode in OWN_PICKERS:
+        provider = make_provider(settings, ai_model) if run_uses_ai else None
+        if provider is not None:
+            ctx.progress(40, f"asking {provider.model} to write the titles")
+        one = mode == "custom"  # custom: one Short per source, exactly the range
+        accepted, usage, notes = write_up(
+            provider,
+            pool,
+            n=len(pool) if one else n,
+            per_source=1 if one else per_source,
+            credits=credits,
+            titles={sid: (src.title or "") for sid, src in srcs.items()},
+            topic=topic,
+            timeout=settings.ai_timeout_s,
+        )
+        warnings += notes
+        rejected = []
     else:
         usage = Usage(provider="none", model="heuristic")
         picks: list[Pick]

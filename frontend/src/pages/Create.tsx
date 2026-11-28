@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, Clock, Film, Loader2, Sparkles, Wand2, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Clock, Loader2, Scissors, Swords, Wand2, XCircle } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
@@ -12,7 +12,7 @@ import { useSources } from '@/lib/sources'
 import { cn, formatClock } from '@/lib/utils'
 import { PageHeader } from './Dashboard'
 
-const MODES: PickMode[] = ['smart', 'deep', 'free', 'whole']
+const MODES: PickMode[] = ['smart', 'deep', 'custom']
 const LENGTHS = ['short', 'medium', 'long'] as const
 type Length = (typeof LENGTHS)[number]
 const MAX_SHORTS = 50
@@ -51,6 +51,7 @@ export function Create() {
   const toggle = (id: string) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
 
+  const custom = mode === 'custom'
   const submit = (e: FormEvent) => {
     e.preventDefault()
     create.mutate(
@@ -61,8 +62,8 @@ export function Create() {
         topic: topic.trim() || null,
         length,
         render: autoRender ? { template, aspects: [], canvas } : null,
-        start: from.trim() || null,
-        end: to.trim() || null,
+        start: custom ? from.trim() || null : null,
+        end: custom ? to.trim() || null : null,
       },
       { onSuccess: (run) => navigate(`/runs/${run.id}`) },
     )
@@ -119,7 +120,7 @@ export function Create() {
         <Card className="space-y-5 p-5">
           <div>
             <p className="mb-2 text-sm font-medium">{t('create.mode')}</p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="radiogroup">
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup">
               {MODES.map((m) => (
                 <button
                   type="button"
@@ -133,10 +134,10 @@ export function Create() {
                   )}
                 >
                   <span className="flex items-center gap-2 font-medium">
-                    {m === 'free' ? (
-                      <Sparkles size={14} aria-hidden />
-                    ) : m === 'whole' ? (
-                      <Film size={14} aria-hidden />
+                    {m === 'custom' ? (
+                      <Scissors size={14} aria-hidden />
+                    ) : m === 'deep' ? (
+                      <Swords size={14} aria-hidden />
                     ) : (
                       <Bot size={14} aria-hidden />
                     )}
@@ -148,14 +149,14 @@ export function Create() {
                 </button>
               ))}
             </div>
-            {(mode === 'smart' || mode === 'deep') && (
+            {mode === 'smart' && (
               <div className="mt-2">
                 <AIStatusLine />
               </div>
             )}
           </div>
           <div className="flex flex-wrap gap-6">
-            {mode !== 'whole' && (
+            {!custom && (
               <label className="text-sm">
                 <span className="mb-1 block font-medium">{t('create.count')}</span>
                 <input
@@ -170,7 +171,7 @@ export function Create() {
                 />
               </label>
             )}
-            {mode !== 'whole' && (
+            {mode === 'smart' && (
               <div className="text-sm">
                 <span className="mb-1 block font-medium">{t('create.length')}</span>
                 <div
@@ -199,52 +200,46 @@ export function Create() {
                 </span>
               </div>
             )}
-            <label className="min-w-60 flex-1 text-sm">
-              <span className="mb-1 block font-medium">{t('create.topic')}</span>
-              <input
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder={t('create.topicPh')}
-                maxLength={200}
-                className="h-9 w-full rounded-lg border border-border bg-surface-2 px-3"
-              />
-            </label>
+            {!custom && (
+              <label className="min-w-60 flex-1 text-sm">
+                <span className="mb-1 block font-medium">{t('create.topic')}</span>
+                <input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder={t('create.topicPh')}
+                  maxLength={200}
+                  className="h-9 w-full rounded-lg border border-border bg-surface-2 px-3"
+                />
+              </label>
+            )}
           </div>
-          <fieldset className="text-sm">
-            <legend className="mb-1 flex items-center gap-2 font-medium">
-              <Clock size={14} aria-hidden /> {t('create.range')}
-            </legend>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                aria-label={t('create.rangeFrom')}
-                placeholder={t('create.rangeFromPh')}
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
-              />
-              <span className="text-muted">–</span>
-              <input
-                aria-label={t('create.rangeTo')}
-                placeholder={t('create.rangeToPh')}
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
-              />
-              {(from || to) && (
-                <button
-                  type="button"
-                  className="text-xs text-accent hover:underline"
-                  onClick={() => {
-                    setFrom('')
-                    setTo('')
-                  }}
-                >
-                  {t('create.rangeClear')}
-                </button>
-              )}
-            </div>
-            <span className="mt-1 block text-xs text-muted">{t('create.rangeHelp')}</span>
-          </fieldset>
+          {custom && (
+            <fieldset className="text-sm">
+              <legend className="mb-1 flex items-center gap-2 font-medium">
+                <Clock size={14} aria-hidden /> {t('create.range')}
+              </legend>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  aria-label={t('create.rangeFrom')}
+                  placeholder={t('create.rangeFromPh')}
+                  inputMode="numeric"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
+                />
+                <span className="text-muted">–</span>
+                <input
+                  aria-label={t('create.rangeTo')}
+                  placeholder={t('create.rangeToPh')}
+                  inputMode="numeric"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="h-9 w-28 rounded-lg border border-border bg-surface-2 px-3"
+                />
+              </div>
+              <span className="mt-1 block text-xs text-muted">{t('create.rangeHelp')}</span>
+            </fieldset>
+          )}
           <div className="space-y-3 border-t border-border pt-5">
             <label className="flex items-center gap-3 text-sm font-medium">
               <input
@@ -284,13 +279,18 @@ export function Create() {
               {create.error.message}
             </p>
           )}
-          <Button type="submit" disabled={!picked.length || create.isPending}>
+          <Button
+            type="submit"
+            disabled={!picked.length || create.isPending || (custom && !(from.trim() && to.trim()))}
+          >
             {create.isPending && <Loader2 size={14} className="animate-spin" aria-hidden />}
-            {mode === 'whole'
-              ? t('create.startWhole', { count: picked.length })
-              : autoRender
-                ? t('create.startRender', { n })
-                : t('create.start', { n })}
+            {custom
+              ? t('create.startCustom', { count: picked.length })
+              : mode === 'deep'
+                ? t('create.startDeep', { n })
+                : autoRender
+                  ? t('create.startRender', { n })
+                  : t('create.start', { n })}
           </Button>
         </Card>
       </form>

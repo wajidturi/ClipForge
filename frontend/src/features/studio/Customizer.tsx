@@ -44,7 +44,7 @@ import { useHistory, useStudio, useSwitchTemplate } from '@/lib/studio'
 import { cn, formatClock } from '@/lib/utils'
 import { Compositor } from './compositor'
 import { Segmented } from './controls'
-import { designSize, loadFonts, panels } from './draw'
+import { designSize, loadFonts, panels, toSpot, type Rect } from './draw'
 import { limitsOf } from './canvas'
 import { removeLayer, setLayer, type Edit } from './edit'
 import {
@@ -113,6 +113,25 @@ function Generate({ short }: { short: ShortDetail }) {
  *  never wider than its column; the height follows from the aspect ratio. */
 function previewBox(w: number, h: number): CSSProperties {
   return { aspectRatio: `${w} / ${h}`, width: `min(100%, calc(min(72vh, 760px) * ${w / h}))` }
+}
+
+const PANEL_KEY = { __game: 'game', __panel: 'cam' } as const
+type PanelId = keyof typeof PANEL_KEY
+const isPanel = (id: string | null): id is PanelId => id === '__game' || id === '__panel'
+
+/** Snap a dragged panel to the video's edges and centre lines (within 18 px). */
+function snapRect(r: Rect, W: number, H: number): Rect {
+  const near = (v: number, targets: number[]) =>
+    targets.reduce((best, t) => (Math.abs(v - t) < Math.abs(v - best) ? t : best), v)
+  const pick = (v: number, targets: number[]) => {
+    const t = near(v, targets)
+    return Math.abs(v - t) <= 18 ? t : v
+  }
+  return {
+    ...r,
+    x: Math.round(pick(r.x, [0, W - r.w, (W - r.w) / 2])),
+    y: Math.round(pick(r.y, [0, H - r.h, (H - r.h) / 2])),
+  }
 }
 
 export function Customizer({ short }: { short: ShortDetail }) {
@@ -192,7 +211,12 @@ function Editor({
     const box = selRef.current
     if (!box) return
     const b = c.bounds.find((x) => x.id === selected)
-    const camBox = selected === '__cam' ? panels(scene).cam : undefined
+    const camBox =
+      selected === '__cam'
+        ? panels(scene).cam
+        : isPanel(selected)
+          ? panels(scene)[PANEL_KEY[selected]]
+          : undefined
     const r = b ?? camBox
     if (!r) {
       box.style.display = 'none'
@@ -305,6 +329,19 @@ function Editor({
   }
   const layer = scene.layers.find((l) => l.id === selected) ?? null
 
+  // free layout: the gameplay / facecam panel moved or resized (regions.place)
+  const placePanel = (key: 'game' | 'cam', r: Rect, transient = false) =>
+    hist.set(
+      (s) => ({
+        ...s,
+        regions: {
+          ...s.regions,
+          place: { game: null, cam: null, ...s.regions.place, [key]: toSpot(r, W, H) },
+        },
+      }),
+      transient,
+    )
+
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement | null
@@ -330,12 +367,21 @@ function Editor({
       } else if (
         (ev.key === 'Delete' || ev.key === 'Backspace') &&
         selected &&
-        selected !== '__cam'
+        selected !== '__cam' &&
+        !isPanel(selected)
       ) {
         ev.preventDefault()
         removeLayer(edit, selected)
       } else if (ev.key === 'Escape') setSelected(null)
-      else if (selected && selected !== '__cam' && ev.key.startsWith('Arrow')) {
+      else if (isPanel(selected) && ev.key.startsWith('Arrow')) {
+        ev.preventDefault()
+        const q = panels(scene)[PANEL_KEY[selected]]
+        if (!q) return
+        const step = Math.round((ev.shiftKey ? 0.02 : 0.003) * Math.min(W, H))
+        const dx = ev.key === 'ArrowLeft' ? -step : ev.key === 'ArrowRight' ? step : 0
+        const dy = ev.key === 'ArrowUp' ? -step : ev.key === 'ArrowDown' ? step : 0
+        placePanel(PANEL_KEY[selected], { ...q, x: q.x + dx, y: q.y + dy })
+      } else if (selected && selected !== '__cam' && ev.key.startsWith('Arrow')) {
         ev.preventDefault()
         const step = ev.shiftKey ? 0.02 : 0.003
         const l = scene.layers.find((x) => x.id === selected)
@@ -349,8 +395,9 @@ function Editor({
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // drag to move, corner handle to resize (layers and the floating facecam)
+  // drag to move, corner handle to resize (layers, the floating facecam, the panels)
   const drag = useRef<null | {
+    rect?: Rect
     id: string
     mode: 'move' | 'scale'
     px: number
@@ -373,25 +420,37 @@ function Editor({
     const sel = hits.find((b) => b.id === selected)
     const nearCorner = (b: { x: number; y: number; w: number; h: number }) =>
       Math.hypot(px - (b.x + b.w), py - (b.y + b.h)) < 48
-    const cam = scene.template === 'floating_facecam' ? panels(scene).cam : undefined
+    const p = panels(scene)
+    const cam = scene.template === 'floating_facecam' ? p.cam : undefined
+    const camPanel = scene.template !== 'floating_facecam' ? p.cam : undefined
+    const inside = (b: Rect | undefined) =>
+      !!b && px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h
     let id: string | null = null
     let mode: 'move' | 'scale' = 'move'
+    const selPanel = isPanel(selected) ? p[PANEL_KEY[selected]] : undefined
     if (sel && nearCorner(sel)) {
       id = sel.id
       mode = 'scale'
     } else if (selected === '__cam' && cam && nearCorner(cam)) {
       id = '__cam'
       mode = 'scale'
+    } else if (selPanel && nearCorner(selPanel)) {
+      id = selected
+      mode = 'scale'
     } else {
       id =
         hits.find((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)?.id ?? null
-      if (!id && cam && px >= cam.x && px <= cam.x + cam.w && py >= cam.y && py <= cam.y + cam.h)
-        id = '__cam'
+      if (!id && inside(cam)) id = '__cam'
+      else if (!id && inside(camPanel)) id = '__panel'
+      else if (!id && inside(p.game)) id = '__game'
     }
     setSelected(id)
     if (!id) return
     ev.currentTarget.setPointerCapture(ev.pointerId)
-    if (id === '__cam') {
+    if (isPanel(id)) {
+      const q = p[PANEL_KEY[id]]!
+      drag.current = { id, mode, px, py, x: 0, y: 0, s: 0, cx: 0, cy: 0, rect: { ...q } }
+    } else if (id === '__cam') {
       const cr = scene.regions.cam
       drag.current = { id, mode, px, py, x: cr.x, y: cr.y, s: cr.size, cx: cr.x * W, cy: cr.y * H }
     } else {
@@ -413,6 +472,19 @@ function Editor({
     const d = drag.current
     if (!d) return
     const [px, py] = toScene(ev)
+    if (isPanel(d.id) && d.rect) {
+      const q = d.rect
+      const r =
+        d.mode === 'move'
+          ? snapRect({ ...q, x: q.x + px - d.px, y: q.y + py - d.py }, W, H)
+          : {
+              ...q,
+              w: Math.max(0.1 * W, q.w + px - d.px),
+              h: Math.max(0.1 * H, q.h + py - d.py),
+            }
+      placePanel(PANEL_KEY[d.id], r, true)
+      return
+    }
     if (d.mode === 'move') {
       const x = d.x + (px - d.px) / W
       const y = d.y + (py - d.py) / H

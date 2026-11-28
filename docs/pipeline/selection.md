@@ -29,7 +29,12 @@ flowchart LR
 | `services/runs.py` | Orchestration, used-range exclusion (picks not rejected/dropped), fallback/top-up, persistence |
 | `services/preview.py` | 4-frame preview strip per pick from the proxy or original video |
 
-**Modes:** `free` (no AI), `smart` (AI reads candidate head…tail), `deep` (AI reads 2× more candidates with full text). Full-transcript reading for multi-hour streams does not fit a small local model's context, so "deep" works on candidates too.
+**Modes** (Create → How to pick shows the first three):
+
+- `smart`: the AI reads the candidate windows of the chosen length (head…tail) and picks the clips most likely to go viral.
+- `deep`: whole **action scenes**, whatever their length (`pipeline/selection/scenes.py`). From the picture analysis (per-second motion, scene cuts) and the loudness curve, a scene is a stretch where the picture moves much more than usual for this video (motion against a 3-minute rolling baseline and against the whole video, lifted by loud sound). Lulls under 5 s do not end a scene; 3 s of build-up and 2 s of tail are kept; boundaries snap to a scene cut within 3 s; scenes under 12 s are dropped and over 10 min are split at their calmest second. Score = mean and 90th-percentile intensity, a slowly growing length bonus, and a bonus for impact / loud / chat marks inside. The AI (when on) chooses among the best scenes and writes the texts but cannot trim them. Needs “Analyse the picture”; without it the run fails with that hint.
+- `custom`: exactly the typed range (`HH:MM:SS`, `MM:SS` or seconds, at most 20 minutes), one Short per selected source, not snapped to speech; works on silent footage too.
+- `free` (no AI) and `whole` (each short uploaded clip as one Short) stay in the API for older runs and scripts.
 
 **Fail-safe:** if the AI is unreachable, times out or returns invalid JSON twice, the run uses the heuristic and says so in `result.warnings`. If the AI returns fewer usable picks than asked, the rest are filled by signal score (also stated).
 
@@ -41,7 +46,7 @@ flowchart LR
 | `CF_OLLAMA_URL` | `http://127.0.0.1:11434` | |
 | `CF_OLLAMA_MODEL` | `qwen3.5:4b` | any pulled model; a run can override it |
 | `CF_AI_TIMEOUT_S` | 300 | per AI request |
-| `CF_CANDIDATES_K` | 30 | candidates shown to the AI (deep: 2×) |
+| `CF_CANDIDATES_K` | 30 | candidates shown to the AI (smart) |
 
 ## API
 

@@ -35,6 +35,29 @@ describe('video size geometry (like scene.py)', () => {
     expect(Math.min(...pts.map((q) => q[1]))).toBeLessThan(0)
   })
 
+  it('puts dragged panels where the user left them (like scene.panels)', () => {
+    const s = at('dual_vision', { preset: '9:16', w: 1080, h: 1920 })
+    const moved = {
+      ...s,
+      regions: {
+        ...s.regions,
+        place: {
+          game: { x: 0.1, y: 0.2, w: 0.8, h: 0.5 },
+          cam: { x: -0.1, y: 0.6, w: 0.5, h: 0.3 },
+        },
+      },
+    } as Scene
+    const p = panels(moved)
+    expect(p.game).toEqual({ x: 108, y: 384, w: 864, h: 960 })
+    expect(p.cam).toEqual({ x: -108, y: 1152, w: 540, h: 576 })
+    const before = panels(s).cam
+    const one = {
+      ...s,
+      regions: { ...s.regions, place: { game: { x: 0, y: 0, w: 1, h: 0.5 }, cam: null } },
+    } as Scene
+    expect(panels(one).cam).toEqual(before)
+  })
+
   it('checks custom sizes like the backend', () => {
     expect(canvasProblem(720, 1280, DEFAULT_LIMITS)).toBeNull()
     expect(canvasProblem(100, 1280, DEFAULT_LIMITS)).toBe('range')

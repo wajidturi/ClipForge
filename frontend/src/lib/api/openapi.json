@@ -4094,6 +4094,33 @@
         "required": ["id", "label"],
         "title": "OptionOut"
       },
+      "Place": {
+        "properties": {
+          "game": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Spot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cam": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Spot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "Place",
+        "description": "Free layout: where the gameplay and the facecam panel sit, overriding the\ntemplate's arrangement (None = the template's own place)."
+      },
       "Platform": {
         "type": "string",
         "enum": [
@@ -4138,6 +4165,16 @@
       },
       "Regions": {
         "properties": {
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Place"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "split": {
             "type": "number",
             "maximum": 0.75,
@@ -4433,9 +4470,9 @@
           },
           "pick_mode": {
             "type": "string",
-            "enum": ["free", "smart", "deep", "whole"],
+            "enum": ["free", "smart", "deep", "whole", "custom"],
             "title": "Pick Mode",
-            "description": "whole = each (short) source becomes one Short",
+            "description": "smart = AI picks moments of the chosen length; deep = whole action scenes, any length; custom = exactly start..end; whole = each short source as one Short",
             "default": "smart"
           },
           "render": {
@@ -6247,6 +6284,41 @@
         "type": "string",
         "enum": ["new", "downloading", "analyzing", "ready", "failed", "skipped"],
         "title": "SourceStatus"
+      },
+      "Spot": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 0.9,
+            "minimum": -0.9,
+            "title": "X",
+            "default": 0.0
+          },
+          "y": {
+            "type": "number",
+            "maximum": 0.9,
+            "minimum": -0.9,
+            "title": "Y",
+            "default": 0.0
+          },
+          "w": {
+            "type": "number",
+            "maximum": 1.5,
+            "minimum": 0.1,
+            "title": "W",
+            "default": 1.0
+          },
+          "h": {
+            "type": "number",
+            "maximum": 1.5,
+            "minimum": 0.1,
+            "title": "H",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "title": "Spot",
+        "description": "A panel placed freely in the studio (dragged / resized), as fractions of the\nvideo: top-left corner and size. It may reach past the edges (cropped there)."
       },
       "StatsOut": {
         "properties": {

@@ -53,13 +53,35 @@ of pulling in what sits above or below the cam.
   Midnight, Studio, Red rush, Aurora, Gold). Pictures are generated at the tile size
   (`raster.cam_background`, served at `GET /render/backgrounds/{id}.png?w=&h=` for the
   preview), so they are never stretched.
-- **Sharpen & clarity** (`regions.cam_enhance`, on by default): the facecam crop is
-  denoised (`hqdn3d`), enlarged with Lanczos, then gets fine and wide unsharp masks plus a
-  little contrast and saturation. This removes the blocky, smeary look of a small cam
-  enlarged ~6×; it cannot invent detail the stream never had.
+- **HD facecam** (`pipeline/render/camhd.py`): a facecam overlay is small in the stream
+  (often ~500×300 px in a 1440p frame) and the Short enlarges it 3–4×. When the cut is
+  prepared, each small cam region (under 900 px wide, the cam box grown 1.35× so every tile
+  crop fits) goes frame by frame through Real-ESRGAN (`realesr-general-x4v3`, BSD-3, ~5 MB,
+  downloaded once from the official GitHub release into `data/models/realesrgan/`) and is
+  written as its own video (`camhd{i}.mp4`, long side ≤ 1600 px). No PyTorch: the weights
+  are read straight from the `.pth` zip (only plain tensors are accepted while unpickling)
+  and written as a small ONNX graph that onnxruntime runs on the GPU (DirectML on Windows,
+  `onnxruntime-directml`) or the CPU. About 2× real time on an RTX 4050 laptop GPU (a
+  75 s clip: ~2.5 min); far slower on a CPU. Cuts made before this get it on their next
+  render. Without the model or a GPU runtime the source crop is used as before.
+- **Sharpen & clarity** (`regions.cam_enhance`, on by default): with the HD video, the
+  tile is only fitted with Lanczos plus a light unsharp mask and a little contrast and
+  saturation; without it the crop is denoised (`hqdn3d`), enlarged with Lanczos and
+  sharpened more strongly. Turning it off shows the plain enlarged source.
 - **HDR** (`effects.color = "hdr"`, the new default grade): stronger local contrast,
   richer colour and a touch of clarity on the whole Short (Instagram-style pop). The
   preview approximates it with canvas filters (no sharpening there).
+
+### Free position (Template tab → Position, and in the preview)
+
+Drag the gameplay or the facecam panel anywhere in the live preview (it may reach past
+the edges); drag the round corner handle to resize; arrow keys nudge the selected panel
+(Shift: bigger steps). Panels snap to the edges and centre lines within 18 px. Stored as
+`regions.place = {game, cam}` (each `{x, y, w, h}` as fractions of the video, `null` =
+the template's own place); `scene.panels` and the studio's `draw.panels` apply it, the
+facecam stays on top where the two overlap, and the dual-vision divider is hidden once a
+panel is moved. “Reset to template” clears it; switching templates starts fresh. The
+floating bubble keeps its own position setting (`regions.cam`).
 
 ### Video size (Template tab → Video size, and on Create)
 

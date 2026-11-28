@@ -146,3 +146,35 @@ def test_size_presets_are_listed(client: TestClient) -> None:
     o = client.get("/api/v1/render/options").json()
     assert [c["id"] for c in o["canvases"]] == ["9:16", "4:5", "1:1", "16:9", "4:3"]
     assert o["canvas_limits"] == {"min": 240.0, "max": 3840.0, "ratio": 4.0}
+
+
+# ------------------------------------------------------------------ free layout
+def test_dragged_panels_go_where_the_user_put_them(tmp_path: Path) -> None:
+    s = scene_at("dual_vision")
+    s.regions.place = sc.Place(
+        game=sc.Spot(x=0.1, y=0.2, w=0.8, h=0.5), cam=sc.Spot(x=-0.1, y=0.6, w=0.5, h=0.3)
+    )
+    p = sc.panels(s)
+    assert p["game"] == sc.Rect(108, 384, 864, 960)
+    assert p["cam"] == sc.Rect(-108, 1152, 540, 576)  # may reach past the edge
+    assert sc.free_layout(s)
+    g = _graph(s, tmp_path)
+    assert "[canvas][game]overlay=108:384" in g
+    # only one panel moved: the other keeps the template's place
+    s2 = scene_at("streamer_first")
+    before = sc.panels(s2)["cam"]
+    s2.regions.place = sc.Place(game=sc.Spot(x=0.0, y=0.5, w=1.0, h=0.5))
+    assert sc.panels(s2)["cam"] == before
+    # the floating cam keeps its own position setting
+    f = scene_at("floating_facecam")
+    f.regions.place = sc.Place(cam=sc.Spot(x=0.5, y=0.5, w=0.2, h=0.2))
+    assert sc.panels(f)["cam"] == sc.panels(scene_at("floating_facecam"))["cam"]
+
+
+def test_free_layout_hides_the_divider() -> None:
+    s = scene_at("dual_vision")
+    s.regions.place = sc.Place(game=sc.Spot(x=0.0, y=0.0, w=1.0, h=0.6))
+    plain = raster.frame_image(scene_at("dual_vision"))
+    moved = raster.frame_image(s)
+    assert plain is not None and moved is not None
+    assert plain.tobytes() != moved.tobytes()

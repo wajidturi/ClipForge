@@ -23,7 +23,16 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from clipforge.pipeline.render.fonts import font_path
-from clipforge.pipeline.render.scene import H, Layer, Rect, Scene, W, design_size, panels
+from clipforge.pipeline.render.scene import (
+    H,
+    Layer,
+    Rect,
+    Scene,
+    W,
+    design_size,
+    free_layout,
+    panels,
+)
 
 RGBA = tuple[int, int, int, int]
 
@@ -367,7 +376,7 @@ def frame_image(scene: Scene) -> Image.Image | None:
             circle=c.shape == "circle",
         )
         drew = True
-    if scene.template == "dual_vision" and r.divider.style != "none":
+    if scene.template == "dual_vision" and r.divider.style != "none" and not free_layout(scene):
         _divider(img, scene)
         drew = True
     if fx.letterbox:

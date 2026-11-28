@@ -13,6 +13,7 @@ suggested reaction phrase.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
@@ -32,7 +33,7 @@ from clipforge.db.enums import AssetKind, AssetOwner
 from clipforge.db.models import MediaAsset
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobContext
-from clipforge.pipeline.render import compose, matte, reframe
+from clipforge.pipeline.render import camhd, compose, matte, reframe
 from clipforge.pipeline.render.edl import CaptionWord, build_edl, keyed_words
 from clipforge.pipeline.render.effects import audio_chain, measure_loudness, pick_peaks
 from clipforge.pipeline.render.reframe import Box
@@ -87,6 +88,10 @@ class Cut:
             cam_kind=kind,
             matte=self.dir / "matte.mp4" if d.get("matte") else None,
             matte_size=tuple(d["matte"]["size"]) if d.get("matte") else (0, 0),
+            camhd=[
+                (self.dir / e["file"], camhd.HDRegion(*e["region"], *e["size"])) if e else None
+                for e in d.get("camhd") or []
+            ],
         )
 
     def keyed(self) -> list[tuple[CaptionWord, str]]:
@@ -152,6 +157,7 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
     key = cut_key(source_id, start, end, edl.to_json())
     if (hit := load_cut(short_id, key)) is not None:
         job.progress(40, "reusing the prepared cut")
+        ensure_camhd(job, hit)  # cuts made before the HD facecam get it now
         return hit
     settings = get_settings()
     d = cuts_root(short_id) / key
@@ -250,7 +256,62 @@ def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) 
     data["matte"] = matte_info
     (d / "cut.json").write_text(json.dumps(data), encoding="utf-8")
     _prune(short_id, keep=key)
-    return Cut(key, d, edited, preview, data)
+    cut = Cut(key, d, edited, preview, data)
+    ensure_camhd(job, cut)
+    return cut
+
+
+def _hd_progress(job: JobContext, label: str, pct: float) -> None:
+    job.progress(40, f"{label}: {pct:.0f}%")
+
+
+def ensure_camhd(job: JobContext, cut: Cut) -> None:
+    """Upscale small streamer facecams with the AI upscaler (camhd.py), once per cut.
+    Optional like the matte: without the model or a usable runtime the renderer crops
+    the source as before."""
+    d = cut.data
+    if "camhd" in d:
+        return
+    cams, _, kind = cam_boxes(d)
+    regions = camhd.hd_regions(cams, d["src_w"], d["src_h"]) if kind == "overlay" else []
+    entries: list[dict[str, Any] | None] = [None] * len(regions)
+    if any(regions):
+        try:
+            model = camhd.ensure_model(get_settings().resolved_data_dir / "models")
+            up = camhd.Upscaler(model)
+        except Exception as e:
+            log.warning("cut.camhd_unavailable", error=str(e)[:200])
+            up = None
+        todo = [(i, r) for i, r in enumerate(regions) if r is not None]
+        for n, (i, r) in enumerate(todo if up is not None else []):
+            assert up is not None
+            label = "making the streamer HD" + (f" ({n + 1}/{len(todo)})" if len(todo) > 1 else "")
+            job.progress(40, label)
+            out = cut.dir / f"camhd{i}.mp4"
+            try:
+                camhd.build_hd(
+                    cut.edited,
+                    r,
+                    out,
+                    duration=d["duration"],
+                    upscaler=up,
+                    is_cancelled=lambda: job.cancelled,
+                    on_progress=functools.partial(_hd_progress, job, label),
+                )
+            except ffmpeg.FFmpegCancelledError:
+                raise
+            except Exception as e:  # a sharper cam is a nice-to-have, never a failed render
+                log.warning("cut.camhd_failed", error=str(e)[:300])
+                out.unlink(missing_ok=True)
+                continue
+            entries[i] = {
+                "file": out.name,
+                "region": [r.x, r.y, r.w, r.h],
+                "size": [r.out_w, r.out_h],
+            }
+            log.info("cut.camhd", region=[r.w, r.h], size=[r.out_w, r.out_h], gpu=up.on_gpu)
+    d["camhd"] = entries
+    (cut.dir / "cut.json").write_text(json.dumps(d), encoding="utf-8")
 
 
 def _make_matte(

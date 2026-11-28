@@ -88,7 +88,23 @@ export function TemplatePanel({ e }: { e: Edit }) {
           limits={e.canvasLimits}
         />
       </Section>
-      {stacked && (
+      <Section
+        title={t('cz.tpl.free')}
+        action={
+          r.place ? (
+            <button
+              type="button"
+              className="text-xs text-accent hover:underline"
+              onClick={() => setRegions(e, { place: null })}
+            >
+              {t('cz.tpl.freeReset')}
+            </button>
+          ) : null
+        }
+      >
+        <p className="text-xs text-muted">{t('cz.tpl.freeHelp')}</p>
+      </Section>
+      {stacked && !r.place && (
         <Section title={t('cz.tpl.layout')}>
           <Row label={t(`cz.tpl.${wide ? 'splitWide' : 'split'}.${s.template}`)}>
             <Slider

@@ -118,7 +118,26 @@ CAM_BACKGROUNDS: dict[str, str] = {  # id -> name, in picker order
 BLUR_BACKGROUNDS = {"blur_soft": 10, "blur_strong": 26}  # box blur radius at 1080 wide
 
 
+class Spot(_M):
+    """A panel placed freely in the studio (dragged / resized), as fractions of the
+    video: top-left corner and size. It may reach past the edges (cropped there)."""
+
+    x: float = Field(0.0, ge=-0.9, le=0.9)
+    y: float = Field(0.0, ge=-0.9, le=0.9)
+    w: float = Field(1.0, ge=0.1, le=1.5)
+    h: float = Field(1.0, ge=0.1, le=1.5)
+
+
+class Place(_M):
+    """Free layout: where the gameplay and the facecam panel sit, overriding the
+    template's arrangement (None = the template's own place)."""
+
+    game: Spot | None = None
+    cam: Spot | None = None
+
+
 class Regions(_M):
+    place: Place | None = None  # free layout from the studio (drag to move / resize)
     split: float = Field(0.42, ge=0.25, le=0.75)  # height share of the top panel
     frame: Frame = Field(default_factory=Frame)
     cam: Cam = Field(default_factory=Cam)
@@ -779,14 +798,36 @@ def panels(scene: Scene) -> dict[str, Rect]:
             top_h = even(H * r.split)
             first = Rect(g, g, even(W - 2 * g), even(top_h - g - g / 2))
             second = Rect(g, even(top_h + g / 2), even(W - 2 * g), even(H - top_h - g - g / 2))
-        if t == "gameplay_first":
-            return {"game": first, "cam": second}
-        return {"cam": first, "game": second}
-    out = {"game": Rect(g, g, even(W - 2 * g), even(H - 2 * g))}
-    if t == "floating_facecam" and r.cam.visible:
-        side = even(min(W, H) * r.cam.size)
-        out["cam"] = Rect(round(r.cam.x * W - side / 2), round(r.cam.y * H - side / 2), side, side)
+        out = (
+            {"game": first, "cam": second}
+            if t == "gameplay_first"
+            else {"cam": first, "game": second}
+        )
+    else:
+        out = {"game": Rect(g, g, even(W - 2 * g), even(H - 2 * g))}
+        if t == "floating_facecam" and r.cam.visible:
+            side = even(min(W, H) * r.cam.size)
+            out["cam"] = Rect(
+                round(r.cam.x * W - side / 2), round(r.cam.y * H - side / 2), side, side
+            )
+    pl = r.place
+    if pl is not None:  # moved / resized in the studio
+        if pl.game is not None:
+            out["game"] = spot_rect(pl.game, W, H)
+        # the floating cam has its own position (regions.cam)
+        if pl.cam is not None and "cam" in out and t != "floating_facecam":
+            out["cam"] = spot_rect(pl.cam, W, H)
     return out
+
+
+def spot_rect(sp: Spot, w: int, h: int) -> Rect:
+    return Rect(round(sp.x * w), round(sp.y * h), max(16, even(sp.w * w)), max(16, even(sp.h * h)))
+
+
+def free_layout(scene: Scene) -> bool:
+    """Has the user moved a panel? (the template's divider no longer fits then)"""
+    pl = scene.regions.place
+    return pl is not None and (pl.game is not None or pl.cam is not None)
 
 
 TILE_GAP = 8  # px between people sharing the facecam panel

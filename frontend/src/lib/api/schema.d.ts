@@ -1758,6 +1758,15 @@ export interface components {
       label: string
     }
     /**
+     * Place
+     * @description Free layout: where the gameplay and the facecam panel sit, overriding the
+     *     template's arrangement (None = the template's own place).
+     */
+    Place: {
+      game?: components['schemas']['Spot'] | null
+      cam?: components['schemas']['Spot'] | null
+    }
+    /**
      * Platform
      * @enum {string}
      */
@@ -1790,6 +1799,7 @@ export interface components {
     QcVerdict: 'pass' | 'warn' | 'fail'
     /** Regions */
     Regions: {
+      place?: components['schemas']['Place'] | null
       /**
        * Split
        * @default 0.42
@@ -1930,11 +1940,11 @@ export interface components {
       n?: number
       /**
        * Pick Mode
-       * @description whole = each (short) source becomes one Short
+       * @description smart = AI picks moments of the chosen length; deep = whole action scenes, any length; custom = exactly start..end; whole = each short source as one Short
        * @default smart
        * @enum {string}
        */
-      pick_mode?: 'free' | 'smart' | 'deep' | 'whole'
+      pick_mode?: 'free' | 'smart' | 'deep' | 'whole' | 'custom'
       /** @description render the picks right away with this template */
       render?: components['schemas']['RunRender'] | null
       /**
@@ -2546,6 +2556,33 @@ export interface components {
      * @enum {string}
      */
     SourceStatus: 'new' | 'downloading' | 'analyzing' | 'ready' | 'failed' | 'skipped'
+    /**
+     * Spot
+     * @description A panel placed freely in the studio (dragged / resized), as fractions of the
+     *     video: top-left corner and size. It may reach past the edges (cropped there).
+     */
+    Spot: {
+      /**
+       * X
+       * @default 0
+       */
+      x?: number
+      /**
+       * Y
+       * @default 0
+       */
+      y?: number
+      /**
+       * W
+       * @default 1
+       */
+      w?: number
+      /**
+       * H
+       * @default 1
+       */
+      h?: number
+    }
     /** StatsOut */
     StatsOut: {
       /** Sources */

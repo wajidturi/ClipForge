@@ -260,3 +260,63 @@ def test_a_calm_range_still_gives_moments(client: TestClient) -> None:
     assert run["status"] == "succeeded", run["error"]
     part = run["shorts"][0]["parts"][0]
     assert part["end_s"] <= 80
+
+
+def test_custom_mode_cuts_exactly_the_typed_range(client: TestClient) -> None:
+    sid = seed_source()
+    run = start(client, [sid], pick_mode="custom", start="00:01:05", end="00:03:20")
+    assert run["status"] == "succeeded", run["error"]
+    assert len(run["shorts"]) == 1
+    part = run["shorts"][0]["parts"][0]
+    assert (part["start_s"], part["end_s"]) == (65.0, 200.0)  # not snapped to speech
+
+
+def test_custom_mode_needs_both_times(client: TestClient) -> None:
+    sid = seed_source()
+    r = client.post("/api/v1/runs", json={"source_ids": [sid], "pick_mode": "custom"})
+    assert r.status_code == 422 and "start and an end" in r.json()["detail"]
+    r = client.post(
+        "/api/v1/runs",
+        json={"source_ids": [sid], "pick_mode": "custom", "start": "0:00", "end": "25:00"},
+    )
+    assert r.status_code == 422 and "20 minutes" in r.json()["detail"]
+    r = client.post(
+        "/api/v1/runs",
+        json={"source_ids": [sid], "pick_mode": "custom", "start": "6:00", "end": "7:00"},
+    )
+    assert r.status_code == 422 and "after the end" in r.json()["detail"]
+
+
+def _seed_motion(sid: str, busy: list[tuple[int, int]], length: int = 300) -> None:
+    import json
+
+    from clipforge.services.sources import source_dir
+
+    motion = [0.02] * length
+    for a, b in busy:
+        for i in range(a, b):
+            motion[i] = 0.2
+    d = source_dir(get_settings(), uuid.UUID(sid))
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "curves.json").write_text(
+        json.dumps({"motion": motion, "motion_offset_s": 0.0}), encoding="utf-8"
+    )
+
+
+def test_deep_mode_keeps_whole_action_scenes(client: TestClient) -> None:
+    """A 70 s chase and a 20 s fight: each becomes one Short, whatever its length."""
+    sid = seed_source()
+    _seed_motion(sid, [(40, 110), (200, 220)])
+    run = start(client, [sid], n=5, pick_mode="deep")
+    assert run["status"] == "succeeded", run["error"]
+    spans = sorted((s["parts"][0]["start_s"], s["parts"][0]["end_s"]) for s in run["shorts"])
+    assert len(spans) == 2
+    (a1, b1), (a2, b2) = spans
+    assert a1 <= 40 and b1 >= 110 and b1 - a1 < 90
+    assert a2 <= 200 and b2 >= 220
+
+
+def test_deep_mode_without_picture_analysis_says_so(client: TestClient) -> None:
+    sid = seed_source()
+    run = start(client, [sid], n=2, pick_mode="deep")
+    assert run["status"] == "failed" and "Analyse the picture" in run["error"]
