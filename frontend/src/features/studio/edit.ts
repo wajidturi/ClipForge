@@ -18,6 +18,8 @@ export type Edit = {
   canvases: { id: string; label: string; w: number; h: number }[]
   canvasLimits: { min: number; max: number; ratio: number }
   cutOut: boolean
+  /** crop & zoom: zoom the picture inside a video frame ('game', 'cam0' ...) */
+  zoomFrame?: (key: string, zoom: number, transient?: boolean) => void
 }
 
 export function setRegions(e: Edit, patch: Partial<Regions>, transient = false) {

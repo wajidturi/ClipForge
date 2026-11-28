@@ -44,7 +44,7 @@ import { useHistory, useStudio, useSwitchTemplate } from '@/lib/studio'
 import { cn, formatClock } from '@/lib/utils'
 import { Compositor } from './compositor'
 import { Segmented } from './controls'
-import { designSize, loadFonts, panels, toSpot, type Rect } from './draw'
+import { designSize, loadFonts, type View } from './draw'
 import { limitsOf } from './canvas'
 import { removeLayer, setLayer, type Edit } from './edit'
 import {
@@ -115,24 +115,10 @@ function previewBox(w: number, h: number): CSSProperties {
   return { aspectRatio: `${w} / ${h}`, width: `min(100%, calc(min(72vh, 760px) * ${w / h}))` }
 }
 
-const PANEL_KEY = { __game: 'game', __panel: 'cam' } as const
-type PanelId = keyof typeof PANEL_KEY
-const isPanel = (id: string | null): id is PanelId => id === '__game' || id === '__panel'
-
-/** Snap a dragged panel to the video's edges and centre lines (within 18 px). */
-function snapRect(r: Rect, W: number, H: number): Rect {
-  const near = (v: number, targets: number[]) =>
-    targets.reduce((best, t) => (Math.abs(v - t) < Math.abs(v - best) ? t : best), v)
-  const pick = (v: number, targets: number[]) => {
-    const t = near(v, targets)
-    return Math.abs(v - t) <= 18 ? t : v
-  }
-  return {
-    ...r,
-    x: Math.round(pick(r.x, [0, W - r.w, (W - r.w) / 2])),
-    y: Math.round(pick(r.y, [0, H - r.h, (H - r.h) / 2])),
-  }
-}
+/** Selection id of a framed panel (crop & zoom inside it): '__frame:game', '__frame:cam0' */
+const FRAME = '__frame:'
+const frameKey = (id: string | null) => (id?.startsWith(FRAME) ? id.slice(FRAME.length) : null)
+const MAX_ZOOM = 6
 
 export function Customizer({ short }: { short: ShortDetail }) {
   const studio = useStudio(short.id)
@@ -211,23 +197,20 @@ function Editor({
     const box = selRef.current
     if (!box) return
     const b = c.bounds.find((x) => x.id === selected)
-    const camBox =
-      selected === '__cam'
-        ? panels(scene).cam
-        : isPanel(selected)
-          ? panels(scene)[PANEL_KEY[selected]]
-          : undefined
-    const r = b ?? camBox
+    const fk = frameKey(selected)
+    const r = b ?? (fk ? c.frameOf(fk, v.currentTime)?.panel : undefined)
     if (!r) {
       box.style.display = 'none'
       return
     }
     box.style.display = 'block'
+    // frames are fixed: no resize handle, a solid outline
+    box.dataset.frame = fk ? '1' : ''
     box.style.left = `${(r.x / W) * 100}%`
     box.style.top = `${(r.y / H) * 100}%`
     box.style.width = `${(r.w / W) * 100}%`
     box.style.height = `${(r.h / H) * 100}%`
-  }, [selected, scene, W, H])
+  }, [selected, W, H])
 
   useEffect(() => {
     if (!canvasRef.current || !videoRef.current) return
@@ -326,21 +309,42 @@ function Editor({
     canvases,
     canvasLimits,
     cutOut: !!cut.matte_asset_id && (cut.cam_kind === 'overlay' || cut.cam_kind === 'camera'),
+    zoomFrame: (key, zoom, transient) => zoomFrame(key, zoom, undefined, undefined, transient),
   }
   const layer = scene.layers.find((l) => l.id === selected) ?? null
 
-  // free layout: the gameplay / facecam panel moved or resized (regions.place)
-  const placePanel = (key: 'game' | 'cam', r: Rect, transient = false) =>
-    hist.set(
-      (s) => ({
-        ...s,
-        regions: {
-          ...s.regions,
-          place: { game: null, cam: null, ...s.regions.place, [key]: toSpot(r, W, H) },
-        },
-      }),
-      transient,
-    )
+  // crop & zoom inside a fixed frame (regions.views), like a profile picture
+  const setFrameView = (key: string, v: View | null, transient = false) =>
+    hist.set((s) => {
+      const views = { ...s.regions.views } as Record<string, View>
+      if (v) views[key] = v
+      else delete views[key]
+      return { ...s, regions: { ...s.regions, views } }
+    }, transient)
+  /** The view a frame shows now (also when the template still frames it). */
+  const viewOf = (key: string): View | null => {
+    const f = comp.current?.frameOf(key, videoRef.current?.currentTime ?? time)
+    if (!f) return null
+    const [x, y, w, h] = f.crop
+    return { x: (x + w / 2) / cut.src_w, y: (y + h / 2) / cut.src_h, zoom: f.w0 / w }
+  }
+  /** Zoom a frame, keeping the source point under (px, py) in place (or the centre). */
+  const zoomFrame = (key: string, zoom: number, px?: number, py?: number, transient = true) => {
+    const f = comp.current?.frameOf(key, videoRef.current?.currentTime ?? time)
+    const cur = viewOf(key)
+    if (!f || !cur) return
+    const z = clamp(zoom, f.minZoom, MAX_ZOOM)
+    let { x, y } = cur
+    if (px !== undefined && py !== undefined) {
+      const [cx, cy, cw, ch] = f.crop
+      const sx = (cx + ((px - f.panel.x) / f.panel.w) * cw) / cut.src_w
+      const sy = (cy + ((py - f.panel.y) / f.panel.h) * ch) / cut.src_h
+      const k = cur.zoom / z
+      x = sx + (x - sx) * k
+      y = sy + (y - sy) * k
+    }
+    setFrameView(key, { x: clamp(x, 0, 1), y: clamp(y, 0, 1), zoom: z }, transient)
+  }
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -367,21 +371,22 @@ function Editor({
       } else if (
         (ev.key === 'Delete' || ev.key === 'Backspace') &&
         selected &&
-        selected !== '__cam' &&
-        !isPanel(selected)
+        !frameKey(selected)
       ) {
         ev.preventDefault()
         removeLayer(edit, selected)
       } else if (ev.key === 'Escape') setSelected(null)
-      else if (isPanel(selected) && ev.key.startsWith('Arrow')) {
+      else if (frameKey(selected) && ev.key.startsWith('Arrow')) {
+        // arrows move the picture inside its frame (Shift: bigger steps)
         ev.preventDefault()
-        const q = panels(scene)[PANEL_KEY[selected]]
-        if (!q) return
-        const step = Math.round((ev.shiftKey ? 0.02 : 0.003) * Math.min(W, H))
-        const dx = ev.key === 'ArrowLeft' ? -step : ev.key === 'ArrowRight' ? step : 0
-        const dy = ev.key === 'ArrowUp' ? -step : ev.key === 'ArrowDown' ? step : 0
-        placePanel(PANEL_KEY[selected], { ...q, x: q.x + dx, y: q.y + dy })
-      } else if (selected && selected !== '__cam' && ev.key.startsWith('Arrow')) {
+        const key = frameKey(selected)!
+        const cur = viewOf(key)
+        if (!cur) return
+        const step = (ev.shiftKey ? 0.05 : 0.01) / cur.zoom
+        const dx = ev.key === 'ArrowLeft' ? step : ev.key === 'ArrowRight' ? -step : 0
+        const dy = ev.key === 'ArrowUp' ? step : ev.key === 'ArrowDown' ? -step : 0
+        setFrameView(key, { ...cur, x: clamp(cur.x + dx, 0, 1), y: clamp(cur.y + dy, 0, 1) })
+      } else if (selected && ev.key.startsWith('Arrow')) {
         ev.preventDefault()
         const step = ev.shiftKey ? 0.02 : 0.003
         const l = scene.layers.find((x) => x.id === selected)
@@ -395,9 +400,11 @@ function Editor({
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  // drag to move, corner handle to resize (layers, the floating facecam, the panels)
+  // drag to move, corner handle to resize (layers); inside a video frame: move the picture
   const drag = useRef<null | {
-    rect?: Rect
+    view?: View
+    crop?: [number, number, number, number]
+    panel?: { w: number; h: number }
     id: string
     mode: 'move' | 'scale'
     px: number
@@ -420,39 +427,41 @@ function Editor({
     const sel = hits.find((b) => b.id === selected)
     const nearCorner = (b: { x: number; y: number; w: number; h: number }) =>
       Math.hypot(px - (b.x + b.w), py - (b.y + b.h)) < 48
-    const p = panels(scene)
-    const cam = scene.template === 'floating_facecam' ? p.cam : undefined
-    const camPanel = scene.template !== 'floating_facecam' ? p.cam : undefined
-    const inside = (b: Rect | undefined) =>
-      !!b && px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h
     let id: string | null = null
     let mode: 'move' | 'scale' = 'move'
-    const selPanel = isPanel(selected) ? p[PANEL_KEY[selected]] : undefined
     if (sel && nearCorner(sel)) {
       id = sel.id
-      mode = 'scale'
-    } else if (selected === '__cam' && cam && nearCorner(cam)) {
-      id = '__cam'
-      mode = 'scale'
-    } else if (selPanel && nearCorner(selPanel)) {
-      id = selected
       mode = 'scale'
     } else {
       id =
         hits.find((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)?.id ?? null
-      if (!id && inside(cam)) id = '__cam'
-      else if (!id && inside(camPanel)) id = '__panel'
-      else if (!id && inside(p.game)) id = '__game'
+      if (!id) {
+        const fk = c.frameAt(px, py)
+        id = fk ? FRAME + fk : null
+      }
     }
     setSelected(id)
     if (!id) return
     ev.currentTarget.setPointerCapture(ev.pointerId)
-    if (isPanel(id)) {
-      const q = p[PANEL_KEY[id]]!
-      drag.current = { id, mode, px, py, x: 0, y: 0, s: 0, cx: 0, cy: 0, rect: { ...q } }
-    } else if (id === '__cam') {
-      const cr = scene.regions.cam
-      drag.current = { id, mode, px, py, x: cr.x, y: cr.y, s: cr.size, cx: cr.x * W, cy: cr.y * H }
+    const fk = frameKey(id)
+    if (fk) {
+      const f = c.frameOf(fk, videoRef.current?.currentTime ?? time)
+      const cur = viewOf(fk)
+      if (!f || !cur) return
+      drag.current = {
+        id,
+        mode,
+        px,
+        py,
+        x: 0,
+        y: 0,
+        s: 0,
+        cx: 0,
+        cy: 0,
+        view: cur,
+        crop: f.crop,
+        panel: f.panel,
+      }
     } else {
       const l = scene.layers.find((x) => x.id === id)!
       drag.current = {
@@ -472,57 +481,67 @@ function Editor({
     const d = drag.current
     if (!d) return
     const [px, py] = toScene(ev)
-    if (isPanel(d.id) && d.rect) {
-      const q = d.rect
-      const r =
-        d.mode === 'move'
-          ? snapRect({ ...q, x: q.x + px - d.px, y: q.y + py - d.py }, W, H)
-          : {
-              ...q,
-              w: Math.max(0.1 * W, q.w + px - d.px),
-              h: Math.max(0.1 * H, q.h + py - d.py),
-            }
-      placePanel(PANEL_KEY[d.id], r, true)
+    const fk = frameKey(d.id)
+    if (fk && d.view && d.crop && d.panel) {
+      // the picture follows the mouse: its centre moves the other way in the source
+      const dx = ((px - d.px) * d.crop[2]) / d.panel.w / cut.src_w
+      const dy = ((py - d.py) * d.crop[3]) / d.panel.h / cut.src_h
+      setFrameView(
+        fk,
+        { ...d.view, x: clamp(d.view.x - dx, 0, 1), y: clamp(d.view.y - dy, 0, 1) },
+        true,
+      )
       return
     }
     if (d.mode === 'move') {
       const x = d.x + (px - d.px) / W
       const y = d.y + (py - d.py) / H
-      if (d.id === '__cam')
-        hist.set(
-          (s) => ({
-            ...s,
-            regions: {
-              ...s.regions,
-              cam: { ...s.regions.cam, x: clamp(x, 0, 1), y: clamp(y, 0, 1) },
-            },
-          }),
-          true,
-        )
-      else setLayer(edit, d.id, { x: clamp(x, -0.2, 1.2), y: clamp(y, -0.2, 1.2) }, true)
+      setLayer(edit, d.id, { x: clamp(x, -0.2, 1.2), y: clamp(y, -0.2, 1.2) }, true)
     } else {
       const ratio =
         Math.hypot(px - d.cx, py - d.cy) / Math.max(10, Math.hypot(d.px - d.cx, d.py - d.cy))
       const s = d.s * ratio
-      if (d.id === '__cam')
-        hist.set(
-          (sc) => ({
-            ...sc,
-            regions: { ...sc.regions, cam: { ...sc.regions.cam, size: clamp(s, 0.15, 0.7) } },
-          }),
-          true,
-        )
-      else {
-        const l = scene.layers.find((x) => x.id === d.id)
-        if (l?.kind === 'image') setLayer(edit, d.id, { width: clamp(s, 0.03, 1) }, true)
-        else setLayer(edit, d.id, { scale: clamp(s, 0.2, 4) }, true)
-      }
+      const l = scene.layers.find((x) => x.id === d.id)
+      if (l?.kind === 'image') setLayer(edit, d.id, { width: clamp(s, 0.03, 1) }, true)
+      else setLayer(edit, d.id, { scale: clamp(s, 0.2, 4) }, true)
     }
   }
   const onUp = () => {
     if (drag.current) hist.commit()
     drag.current = null
   }
+
+  // mouse wheel over a video frame: zoom the picture around the pointer
+  const hitRef = useRef<HTMLDivElement>(null)
+  const wheel = useRef<{ zoomAt: (ev: WheelEvent) => void; timer?: number }>({
+    zoomAt: () => undefined,
+  })
+  useEffect(() => {
+    wheel.current.zoomAt = (ev: WheelEvent) => {
+      const c = comp.current
+      const el = hitRef.current
+      if (!c || !el) return
+      const r = el.getBoundingClientRect()
+      const px = ((ev.clientX - r.left) / r.width) * W
+      const py = ((ev.clientY - r.top) / r.height) * H
+      const fk = c.frameAt(px, py)
+      if (!fk) return
+      ev.preventDefault()
+      const cur = viewOf(fk)
+      if (!cur) return
+      setSelected(FRAME + fk)
+      zoomFrame(fk, cur.zoom * Math.exp(-ev.deltaY * 0.0015), px, py)
+      window.clearTimeout(wheel.current.timer)
+      wheel.current.timer = window.setTimeout(() => hist.commit(), 350)
+    }
+  })
+  useEffect(() => {
+    const el = hitRef.current
+    if (!el) return
+    const on = (ev: WheelEvent) => wheel.current.zoomAt(ev)
+    el.addEventListener('wheel', on, { passive: false }) // passive listeners cannot stop the page scroll
+    return () => el.removeEventListener('wheel', on)
+  }, [view])
 
   const [switchNote, setSwitchNote] = useState<string | null>(null)
   const doSwitch = (tpl: TemplateChoice) =>
@@ -714,6 +733,7 @@ function Editor({
             {view === 'live' && (
               <div
                 className="absolute inset-0 cursor-crosshair touch-none"
+                ref={hitRef}
                 onPointerDown={onDown}
                 onPointerMove={onMove}
                 onPointerUp={onUp}
@@ -722,9 +742,9 @@ function Editor({
               >
                 <div
                   ref={selRef}
-                  className="pointer-events-none absolute hidden rounded-sm border-2 border-dashed border-accent shadow-[0_0_0_1px_rgba(0,0,0,0.4)]"
+                  className="group pointer-events-none absolute hidden rounded-sm border-2 border-dashed border-accent shadow-[0_0_0_1px_rgba(0,0,0,0.4)] data-[frame=1]:border-solid"
                 >
-                  <span className="absolute -right-2 -bottom-2 size-4 rounded-full border-2 border-white bg-accent" />
+                  <span className="absolute -right-2 -bottom-2 size-4 rounded-full border-2 border-white bg-accent group-data-[frame=1]:hidden" />
                 </div>
               </div>
             )}

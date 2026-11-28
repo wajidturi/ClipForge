@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from clipforge.api.app import create_app
 from clipforge.core import ffmpeg
@@ -232,3 +233,24 @@ def test_recut_rules() -> None:
     assert render_svc._recut(info, 10.0, 30.0, ["starts on a black frame"]) == (13.5, 30.0)
     assert render_svc._recut(info, 10.0, 30.0, ["too short (6.0s)"]) == (10.0, 33.0)
     assert render_svc._recut(info, 10.0, 30.0, ["loudness -30 LUFS"]) is None
+
+
+@needs_ffmpeg
+def test_a_typed_range_is_rendered_whole(client: TestClient) -> None:
+    """Real bug: Custom 00:00:58-00:01:59 gave an 18 s video, because the pause cutter
+    started at the first word, ended at the last and dropped the silences. A range the
+    user typed is kept second for second, silences (here 18-21 s) included."""
+    sid = seed_short(video_s=40, start=9.0, end=31.0)
+    with get_sessionmaker()() as s:
+        part = s.scalar(select(ShortPart).where(ShortPart.short_id == uuid.UUID(sid)))
+        assert part is not None
+        part.label = "exact"
+        s.commit()
+    short = render(client, sid)
+    assert short["status"] == "review", short
+    info = ffmpeg.probe(media_path(short["active"]["mp4_asset_id"]))
+    assert abs((info.duration_s or 0) - 22.0) < 0.15
+    # the usual pick of the same range loses its dead air
+    normal = seed_short(video_s=40, start=9.0, end=31.0)
+    n_info = ffmpeg.probe(media_path(render(client, normal)["active"]["mp4_asset_id"]))
+    assert (n_info.duration_s or 0) < 21.0

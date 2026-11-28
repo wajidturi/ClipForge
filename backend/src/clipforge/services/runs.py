@@ -581,7 +581,8 @@ def select_moments(ctx: JobContext, run_id: uuid.UUID) -> dict[str, Any]:
             )
             s.add(short)
             s.flush()
-            s.add(ShortPart(short_id=short.id, idx=0, start_s=p.start, end_s=p.end))
+            label = "exact" if mode == "custom" else None  # render keeps it whole
+            s.add(ShortPart(short_id=short.id, idx=0, start_s=p.start, end_s=p.end, label=label))
             created.append(short)
         render_opts = params.get("render")
         if render_opts is not None or settings.auto_render:

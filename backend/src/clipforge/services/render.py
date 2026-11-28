@@ -38,6 +38,7 @@ from clipforge.db.models import (
     EditRequest,
     MediaAsset,
     QcReport,
+    Run,
     Segment,
     Short,
     ShortPart,
@@ -50,7 +51,7 @@ from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobCancelledError, JobContext, PermanentJobError
 from clipforge.pipeline.render import captions, compose, cover, qc, reframe, scene_render
 from clipforge.pipeline.render import scene as sc
-from clipforge.pipeline.render.edl import apply_fixes, build_edl
+from clipforge.pipeline.render.edl import apply_fixes
 from clipforge.pipeline.transcription.sentences import Word
 from clipforge.services import brand_assets, cuts, settings_store
 
@@ -72,6 +73,17 @@ class _Ctx:
 
     def slice(self, lo: float, hi: float, step: str) -> Any:
         return lambda pct: self.job.progress(lo + (hi - lo) * max(0.0, min(100.0, pct)) / 100, step)
+
+
+EXACT = "exact"  # ShortPart.label of a range the user typed (Create -> Custom)
+
+
+def _from_custom_run(s: Any, short: Short) -> bool:
+    """Custom Shorts made before parts were labelled."""
+    if short.run_id is None:
+        return False
+    run = s.get(Run, short.run_id)
+    return bool(run and (run.params or {}).get("pick_mode") == "custom")
 
 
 def _load(short_id: uuid.UUID) -> dict[str, Any]:
@@ -135,6 +147,8 @@ def _load(short_id: uuid.UUID) -> dict[str, Any]:
             "prev_scene": (prev.settings or {}).get("scene") if prev else None,
             "start": part.start_s,
             "end": part.end_s,
+            # Custom: exactly the typed range (no pause cutting, no re-cut)
+            "exact": part.label == EXACT or _from_custom_run(s, short),
             "loud": list(loud),
             "hottest": hottest,
             "sentences": sentences,
@@ -319,7 +333,9 @@ def render_version(
         if scene.captions.visible and ass.exists()
         else 1.0
     )
-    result = qc.check(final, caption_coverage=coverage, expected_s=plan.duration)
+    result = qc.check(
+        final, caption_coverage=coverage, expected_s=plan.duration, exact=bool(info.get("exact"))
+    )
     for g in [*out_dir.glob("*.txt"), *out_dir.glob("*.png")]:
         g.unlink()
     return {
@@ -328,7 +344,7 @@ def render_version(
         "ass": ass if ass.exists() else None,
         "extras": extras,
         "qc": result,
-        "edl": build_edl(info["words"], start, end),
+        "edl": cuts.cut_edl(info, start, end),
         "layout": scene.template,
         "scene": scene.model_dump(),
         "note": note,
@@ -345,6 +361,8 @@ def _recut(
     info: dict[str, Any], start: float, end: float, reasons: list[str]
 ) -> tuple[float, float] | None:
     """One sentence later at the start (bad first frame) or one more at the end (too short)."""
+    if info.get("exact"):  # a typed range is never moved
+        return None
     sents = info["sentences"]
     text = " ".join(reasons)
     if "black frame" in text or "blank" in text:

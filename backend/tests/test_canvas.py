@@ -148,33 +148,51 @@ def test_size_presets_are_listed(client: TestClient) -> None:
     assert o["canvas_limits"] == {"min": 240.0, "max": 3840.0, "ratio": 4.0}
 
 
-# ------------------------------------------------------------------ free layout
-def test_dragged_panels_go_where_the_user_put_them(tmp_path: Path) -> None:
-    s = scene_at("dual_vision")
-    s.regions.place = sc.Place(
-        game=sc.Spot(x=0.1, y=0.2, w=0.8, h=0.5), cam=sc.Spot(x=-0.1, y=0.6, w=0.5, h=0.3)
+# ------------------------------------------------------------------ crop & zoom
+def test_a_framed_panel_shows_the_chosen_part_of_the_source() -> None:
+    """Like a profile picture: the crop keeps the panel's shape, the zoom divides the
+    template's crop size, the centre follows the view and never leaves the source."""
+    v = sc.View(x=0.25, y=0.5, zoom=2.0)
+    assert sc.view_crop(1000, 500, v, 1920, 1080) == (230, 415, 500, 250)
+    # pushed back inside at the edges
+    assert sc.view_crop(1000, 500, sc.View(x=0.0, y=1.0, zoom=1.0), 1920, 1080) == (
+        0,
+        580,
+        1000,
+        500,
     )
+    # zooming out stops at the whole source, still the panel's shape
+    x, _y, w, h = sc.view_crop(1000, 500, sc.View(zoom=0.25), 1920, 1080)
+    assert (w, h) == (1920, 960) and x == 0
+    # the gameplay never zooms out past the template's (full-height) crop
+    assert sc.view_crop(608, 1080, sc.View(zoom=0.5), 1920, 1080, min_zoom=1.0)[2:] == (608, 1080)
+
+
+def test_views_reach_the_render_graph(tmp_path: Path) -> None:
+    s = scene_at("streamer_first")
+    plan = CutPlan(
+        1920, 1080, 10.0, Box(0.7, 0.05, 0.2, 0.3), [(0.0, 0.5)], [], [],
+        cams=[Box(0.7, 0.05, 0.2, 0.3)],
+    )  # fmt: skip
+
+    def graph() -> str:
+        return build_graph(
+            s, plan, tmp_path, words=[], keywords=[], values={}, image_path=lambda _: None
+        ).graph
+
+    auto = graph()
+    assert ":'" in auto  # the tracked gameplay crop (an x expression)
+    s.regions.views = {
+        "game": sc.View(x=0.2, y=0.5, zoom=1.5),
+        "cam0": sc.View(x=0.8, y=0.2, zoom=2),
+    }
+    framed = graph()
+    game = next(line for line in framed.split(";") if "[game]" in line and "crop=" in line)
+    assert "'" not in game  # a fixed crop, no tracking expression
     p = sc.panels(s)
-    assert p["game"] == sc.Rect(108, 384, 864, 960)
-    assert p["cam"] == sc.Rect(-108, 1152, 540, 576)  # may reach past the edge
-    assert sc.free_layout(s)
-    g = _graph(s, tmp_path)
-    assert "[canvas][game]overlay=108:384" in g
-    # only one panel moved: the other keeps the template's place
-    s2 = scene_at("streamer_first")
-    before = sc.panels(s2)["cam"]
-    s2.regions.place = sc.Place(game=sc.Spot(x=0.0, y=0.5, w=1.0, h=0.5))
-    assert sc.panels(s2)["cam"] == before
-    # the floating cam keeps its own position setting
-    f = scene_at("floating_facecam")
-    f.regions.place = sc.Place(cam=sc.Spot(x=0.5, y=0.5, w=0.2, h=0.2))
-    assert sc.panels(f)["cam"] == sc.panels(scene_at("floating_facecam"))["cam"]
-
-
-def test_free_layout_hides_the_divider() -> None:
-    s = scene_at("dual_vision")
-    s.regions.place = sc.Place(game=sc.Spot(x=0.0, y=0.0, w=1.0, h=0.6))
-    plain = raster.frame_image(scene_at("dual_vision"))
-    moved = raster.frame_image(s)
-    assert plain is not None and moved is not None
-    assert plain.tobytes() != moved.tobytes()
+    assert p == sc.panels(scene_at("streamer_first"))  # the frames never move
+    # the old free-layout field is ignored if a saved scene still has it
+    old = sc.Scene.model_validate(
+        {**s.model_dump(), "regions": {**s.regions.model_dump(), "place": {"game": {"x": 0.3}}}}
+    )
+    assert sc.panels(old) == p

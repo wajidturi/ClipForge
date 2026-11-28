@@ -73,7 +73,10 @@ def first_frame_stats(video: Path) -> tuple[float, float]:
     return float(g.mean()), float(g.std())
 
 
-def check(video: Path, *, caption_coverage: float, expected_s: float) -> QcResult:
+def check(
+    video: Path, *, caption_coverage: float, expected_s: float, exact: bool = False
+) -> QcResult:
+    """`exact`: a range the user typed; its length is theirs to choose."""
     info = ffmpeg.probe(video)
     s = scan(video)
     mean, std = first_frame_stats(video)
@@ -108,7 +111,7 @@ def check(video: Path, *, caption_coverage: float, expected_s: float) -> QcResul
     if dur < 8:
         fail(f"too short ({dur:.1f}s)")
     elif dur > 180:  # YouTube Shorts allow up to 3 minutes
-        fail(f"too long ({dur:.0f}s)")
+        (warn if exact else fail)(f"too long for a YouTube Short ({dur:.0f}s)")
     if abs(dur - expected_s) > 1.5:
         warn(f"length {dur:.1f}s differs from the plan ({expected_s:.1f}s)")
     if s["lufs"] is None:

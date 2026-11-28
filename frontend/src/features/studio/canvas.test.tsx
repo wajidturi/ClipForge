@@ -6,7 +6,7 @@ import type { Scene } from '@/lib/api/client'
 import sceneJson from '@/test/scene.cinematic.json'
 import { canvasProblem, DEFAULT_LIMITS, type CanvasValue } from './canvas'
 import { CanvasPicker } from './CanvasPicker'
-import { camTiles, designSize, dividerPoints, panels } from './draw'
+import { camTiles, designSize, dividerPoints, panels, viewCrop } from './draw'
 
 const PRESETS = [
   { id: '9:16', label: 'Shorts', w: 1080, h: 1920 },
@@ -35,27 +35,24 @@ describe('video size geometry (like scene.py)', () => {
     expect(Math.min(...pts.map((q) => q[1]))).toBeLessThan(0)
   })
 
-  it('puts dragged panels where the user left them (like scene.panels)', () => {
-    const s = at('dual_vision', { preset: '9:16', w: 1080, h: 1920 })
-    const moved = {
+  it('frames a panel like a profile picture (like scene.view_crop)', () => {
+    expect(viewCrop(1000, 500, { x: 0.25, y: 0.5, zoom: 2 }, 1920, 1080)).toEqual([
+      230, 415, 500, 250,
+    ])
+    expect(viewCrop(1000, 500, { x: 0, y: 1, zoom: 1 }, 1920, 1080)).toEqual([0, 580, 1000, 500])
+    expect(viewCrop(1000, 500, { x: 0.5, y: 0.5, zoom: 0.25 }, 1920, 1080).slice(2)).toEqual([
+      1920, 960,
+    ])
+    expect(viewCrop(608, 1080, { x: 0.5, y: 0.5, zoom: 0.5 }, 1920, 1080, 1).slice(2)).toEqual([
+      608, 1080,
+    ])
+    // the frames themselves never move
+    const s = at('streamer_first', { preset: '9:16', w: 1080, h: 1920 })
+    const framed = {
       ...s,
-      regions: {
-        ...s.regions,
-        place: {
-          game: { x: 0.1, y: 0.2, w: 0.8, h: 0.5 },
-          cam: { x: -0.1, y: 0.6, w: 0.5, h: 0.3 },
-        },
-      },
+      regions: { ...s.regions, views: { game: { x: 0.2, y: 0.5, zoom: 2 } } },
     } as Scene
-    const p = panels(moved)
-    expect(p.game).toEqual({ x: 108, y: 384, w: 864, h: 960 })
-    expect(p.cam).toEqual({ x: -108, y: 1152, w: 540, h: 576 })
-    const before = panels(s).cam
-    const one = {
-      ...s,
-      regions: { ...s.regions, place: { game: { x: 0, y: 0, w: 1, h: 0.5 }, cam: null } },
-    } as Scene
-    expect(panels(one).cam).toEqual(before)
+    expect(panels(framed)).toEqual(panels(s))
   })
 
   it('checks custom sizes like the backend', () => {

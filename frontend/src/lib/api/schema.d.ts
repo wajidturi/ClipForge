@@ -1758,15 +1758,6 @@ export interface components {
       label: string
     }
     /**
-     * Place
-     * @description Free layout: where the gameplay and the facecam panel sit, overriding the
-     *     template's arrangement (None = the template's own place).
-     */
-    Place: {
-      game?: components['schemas']['Spot'] | null
-      cam?: components['schemas']['Spot'] | null
-    }
-    /**
      * Platform
      * @enum {string}
      */
@@ -1799,7 +1790,10 @@ export interface components {
     QcVerdict: 'pass' | 'warn' | 'fail'
     /** Regions */
     Regions: {
-      place?: components['schemas']['Place'] | null
+      /** Views */
+      views?: {
+        [key: string]: components['schemas']['View']
+      }
       /**
        * Split
        * @default 0.42
@@ -2556,33 +2550,6 @@ export interface components {
      * @enum {string}
      */
     SourceStatus: 'new' | 'downloading' | 'analyzing' | 'ready' | 'failed' | 'skipped'
-    /**
-     * Spot
-     * @description A panel placed freely in the studio (dragged / resized), as fractions of the
-     *     video: top-left corner and size. It may reach past the edges (cropped there).
-     */
-    Spot: {
-      /**
-       * X
-       * @default 0
-       */
-      x?: number
-      /**
-       * Y
-       * @default 0
-       */
-      y?: number
-      /**
-       * W
-       * @default 1
-       */
-      w?: number
-      /**
-       * H
-       * @default 1
-       */
-      h?: number
-    }
     /** StatsOut */
     StatsOut: {
       /** Sources */
@@ -2790,6 +2757,29 @@ export interface components {
       settings?: {
         [key: string]: unknown
       }
+    }
+    /**
+     * View
+     * @description What a panel shows of the source, set in the studio like a profile picture in
+     *     its frame: the centre (fractions of the source) and the zoom against the
+     *     template's own crop (1 = as the template frames it, 2 = twice as close).
+     */
+    View: {
+      /**
+       * X
+       * @default 0.5
+       */
+      x?: number
+      /**
+       * Y
+       * @default 0.5
+       */
+      y?: number
+      /**
+       * Zoom
+       * @default 1
+       */
+      zoom?: number
     }
     /** WordOut */
     WordOut: {

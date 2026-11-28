@@ -672,7 +672,6 @@
       },
       "cam": "Facecam bubble",
       "camShow": "Show the facecam",
-      "camDrag": "Tip: drag the bubble in the preview to move it.",
       "size": "Size",
       "shape": "Shape",
       "border": "Border",
@@ -700,9 +699,8 @@
         "gameplay_first": "Gameplay width",
         "dual_vision": "Left side size"
       },
-      "free": "Position",
-      "freeHelp": "Drag the gameplay or the streamer in the preview to move them anywhere; drag a corner to resize. Arrow keys nudge the selected one (Shift: bigger steps).",
-      "freeReset": "Reset to template"
+      "camX": "Position left–right",
+      "camY": "Position up–down"
     },
     "shape": {
       "circle": "Circle",
@@ -862,7 +860,16 @@
     },
     "selected": "Selected element",
     "done": "Done",
-    "noCam": "No facecam was found in this clip, so {{name}} is not available. Cinematic Gaming is used instead."
+    "noCam": "No facecam was found in this clip, so {{name}} is not available. Cinematic Gaming is used instead.",
+    "crop": {
+      "title": "Crop & zoom",
+      "help": "The frames stay where they are. Drag the picture inside the gameplay or the facecam frame to choose what shows, and scroll (or use the slider) to zoom. Arrow keys nudge it.",
+      "game": "Gameplay",
+      "cam": "Facecam {{n}}",
+      "zoom": "Zoom",
+      "reset": "Reset this frame",
+      "resetAll": "Reset crop & zoom"
+    }
   },
   "common": {
     "cancel": "Cancel",

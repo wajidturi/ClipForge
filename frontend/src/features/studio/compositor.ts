@@ -10,6 +10,7 @@ import {
   W,
   coverCrop,
   even,
+  viewCrop,
   family,
   frameCanvas,
   panels,
@@ -35,6 +36,13 @@ export type Model = {
 }
 
 export type Bounds = { id: string; x: number; y: number; w: number; h: number }
+export type Framed = {
+  panel: Rect
+  crop: [number, number, number, number]
+  w0: number
+  h0: number
+  minZoom: number
+}
 
 const ALPHA_IN: Record<string, number> = { pop: 0.12, zoom: 0.2, fade: 0.3, none: 0 }
 const SLIDE: Record<string, [number, number]> = {
@@ -380,6 +388,64 @@ export class Compositor {
     }
   }
 
+  private camCrop(scene: Scene, cam: number[], r: Rect, i: number) {
+    const cut = this.model!.cut
+    const base = coverCrop(cam, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
+    const cv = scene.regions.views?.[`cam${i}` as 'cam0']
+    return cv ? viewCrop(base[2], base[3], cv, cut.src_w, cut.src_h) : base
+  }
+
+  /** What a panel shows right now (for dragging / zooming it in the studio):
+   * the panel, its source crop, the template's crop size and the smallest zoom. */
+  frameOf(key: string, t: number): Framed | null {
+    const m = this.model
+    if (!m) return null
+    const { scene, cut } = m
+    const p = panels(scene)
+    if (key === 'game') {
+      const g = p.game!
+      const ar = g.w / g.h
+      let ch = cut.src_h
+      let cw = even(ch * ar)
+      if (cw > cut.src_w) {
+        cw = even(cut.src_w)
+        ch = even(cw / ar)
+      }
+      const view = scene.regions.views?.game
+      const crop: [number, number, number, number] = view
+        ? viewCrop(cw, ch, view, cut.src_w, cut.src_h, 1)
+        : [xAt(this.gameKeys(g, cw), t) * cut.src_w, Math.floor((cut.src_h - ch) / 2), cw, ch]
+      return { panel: g, crop, w0: cw, h0: ch, minZoom: 1 }
+    }
+    const i = Number(key.slice(3))
+    if (!p.cam || Number.isNaN(i)) return null
+    const cams = camList(cut, scene.template)
+    const r = camTiles(p.cam, cams.length)[i]
+    if (!r || !cams[i]) return null
+    const base = coverCrop(cams[i]!, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
+    return {
+      panel: r,
+      crop: this.camCrop(scene, cams[i]!, r, i),
+      w0: base[2],
+      h0: base[3],
+      minZoom: 0.25,
+    }
+  }
+
+  /** Which framed panel is under a point (design units): a facecam tile, else the game. */
+  frameAt(px: number, py: number): string | null {
+    const m = this.model
+    if (!m) return null
+    const p = panels(m.scene)
+    const inside = (b: Rect) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h
+    if (p.cam) {
+      const tiles = camTiles(p.cam, camList(m.cut, m.scene.template).length)
+      const i = tiles.findIndex(inside)
+      if (i >= 0) return `cam${i}`
+    }
+    return p.game && inside(p.game) ? 'game' : null
+  }
+
   private gameKeys(rect: Rect, cw: number): Key[] {
     const m = this.model!
     const k = `${rect.w}x${rect.h}:${cw}`
@@ -493,7 +559,8 @@ export class Compositor {
       ctx.translate(g.x + g.w / 2, g.y + g.h / 2)
       ctx.scale(z, z)
       ctx.translate(-(g.x + g.w / 2), -(g.y + g.h / 2))
-      if (fit === 'blur') {
+      const gameView = scene.regions.views?.game
+      if (fit === 'blur' && !gameView) {
         const sc = Math.max(g.w / cut.src_w, g.h / cut.src_h)
         ctx.filter = `${filter === 'none' ? '' : filter} blur(12px) brightness(0.86)`
         ctx.drawImage(
@@ -517,8 +584,13 @@ export class Compositor {
           cw = even(cut.src_w)
           ch = even(cw / ar)
         }
-        const x = xAt(this.gameKeys(g, cw), t) * cut.src_w
-        const y = Math.floor((cut.src_h - ch) / 2)
+        let x: number
+        let y: number
+        if (gameView) [x, y, cw, ch] = viewCrop(cw, ch, gameView, cut.src_w, cut.src_h, 1)
+        else {
+          x = xAt(this.gameKeys(g, cw), t) * cut.src_w
+          y = Math.floor((cut.src_h - ch) / 2)
+        }
         ctx.drawImage(v, x * f, y * f, cw * f, ch * f, g.x, g.y, g.w, g.h)
         const kx = g.w / cw
         const ky = g.h / ch
@@ -536,7 +608,7 @@ export class Compositor {
       const tiles = p.cam ? camTiles(p.cam, cams.length) : []
       cams.forEach((cam, i) => {
         const r = tiles[i]!
-        const rect = coverCrop(cam, r.w / r.h, cut.src_w, cut.src_h, CAM_MAX_GROW)
+        const rect = this.camCrop(scene, cam, r, i)
         const [x, y, cw, ch] = rect
         ctx.save()
         ctx.filter = filter

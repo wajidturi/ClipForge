@@ -30,7 +30,6 @@ from clipforge.pipeline.render.scene import (
     Scene,
     W,
     design_size,
-    free_layout,
     panels,
 )
 
@@ -376,7 +375,7 @@ def frame_image(scene: Scene) -> Image.Image | None:
             circle=c.shape == "circle",
         )
         drew = True
-    if scene.template == "dual_vision" and r.divider.style != "none" and not free_layout(scene):
+    if scene.template == "dual_vision" and r.divider.style != "none":
         _divider(img, scene)
         drew = True
     if fx.letterbox:

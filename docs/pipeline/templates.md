@@ -72,16 +72,20 @@ of pulling in what sits above or below the cam.
   richer colour and a touch of clarity on the whole Short (Instagram-style pop). The
   preview approximates it with canvas filters (no sharpening there).
 
-### Free position (Template tab → Position, and in the preview)
+### Crop & zoom (in the preview, and Template tab → Crop & zoom)
 
-Drag the gameplay or the facecam panel anywhere in the live preview (it may reach past
-the edges); drag the round corner handle to resize; arrow keys nudge the selected panel
-(Shift: bigger steps). Panels snap to the edges and centre lines within 18 px. Stored as
-`regions.place = {game, cam}` (each `{x, y, w, h}` as fractions of the video, `null` =
-the template's own place); `scene.panels` and the studio's `draw.panels` apply it, the
-facecam stays on top where the two overlap, and the dual-vision divider is hidden once a
-panel is moved. “Reset to template” clears it; switching templates starts fresh. The
-floating bubble keeps its own position setting (`regions.cam`).
+The frames stay where the template puts them; what changes is the part of the source
+each frame shows, like a profile picture in its round frame. Drag the picture inside the
+gameplay or a facecam frame to move it, scroll over it (or use the Zoom slider) to zoom
+around the pointer, arrow keys nudge it; “Reset this frame” and “Reset crop & zoom”
+return to the template's automatic framing. Stored as `regions.views` (`game`, `cam0`…
+`cam2`: `{x, y, zoom}`, the centre as fractions of the source and the zoom against the
+template's own crop). `scene.view_crop` / `draw.viewCrop` keep the frame's shape, divide
+the template's crop size by the zoom and keep the crop inside the source; the gameplay
+never zooms out past its full-height crop, a facecam can zoom out to 0.25×. A framed
+gameplay uses a fixed crop instead of following the action. The floating bubble is
+placed with its Position sliders. (A facecam zoomed out beyond the HD region falls back
+to the plain source crop.)
 
 ### Video size (Template tab → Video size, and on Create)
 

@@ -33,11 +33,13 @@ from clipforge.pipeline.render.scene import (
     Layer,
     Rect,
     Scene,
+    View,
     cam_tiles,
     cover_crop,
     design_size,
     fill_text,
     panels,
+    view_crop,
 )
 
 FPS = compose.FPS
@@ -139,8 +141,10 @@ class Built:
     inputs: list[list[str]]  # extra ffmpeg input args, in order (input 1, 2, ...)
 
 
-def _game_chain(plan: CutPlan, rect: Rect, fit: str, label: str, src: str) -> list[str]:
-    if fit == "blur":
+def _game_chain(
+    plan: CutPlan, rect: Rect, fit: str, label: str, src: str, view: View | None = None
+) -> list[str]:
+    if fit == "blur" and view is None:
         return [
             f"{src}split[gb{label}][gf{label}]",
             f"[gb{label}]scale={rect.w}:{rect.h}:force_original_aspect_ratio=increase,"
@@ -154,6 +158,9 @@ def _game_chain(plan: CutPlan, rect: Rect, fit: str, label: str, src: str) -> li
     if cw > plan.src_w:
         cw = compose._even(plan.src_w)
         ch = compose._even(cw / ar)
+    if view is not None:  # framed by hand in the studio: a fixed crop
+        vx, vy, vw, vh = view_crop(cw, ch, view, plan.src_w, plan.src_h, min_zoom=1.0)
+        return [f"{src}crop={vw}:{vh}:{vx}:{vy},scale={rect.w}:{rect.h},setsar=1[{label}]"]
     keys = track_targets(plan.targets, plan.cuts, min(1.0, cw / plan.src_w))
     x = x_expression(keys, float(plan.src_w))
     y = (plan.src_h - ch) // 2
@@ -253,13 +260,13 @@ def build_graph(
     gr = p["game"]
     z = zoom_expression(plan.zoom_peaks, amount=fx.zoom_amount) if fx.zoom_punch else "1"
     if z != "1":  # punch-in on the gameplay only (frames and the facecam stay put)
-        g += _game_chain(plan, gr, fit, "game0", game_src)
+        g += _game_chain(plan, gr, fit, "game0", game_src, scene.regions.views.get("game"))
         g.append(
             f"[game0]scale=w='2*trunc({gr.w / 2}*({z}))':h='2*trunc({gr.h / 2}*({z}))':"
             f"eval=frame,crop={gr.w}:{gr.h}[game]"
         )
     else:
-        g += _game_chain(plan, gr, fit, "game", game_src)
+        g += _game_chain(plan, gr, fit, "game", game_src, scene.regions.views.get("game"))
     full = p["game"] == Rect(0, 0, W, H)
     if full:
         base = "[game]"
@@ -284,6 +291,8 @@ def build_graph(
         rect = cover_crop(
             (cam.x, cam.y, cam.w, cam.h), r.w / r.h, plan.src_w, plan.src_h, CAM_MAX_GROW
         )
+        if (cv := reg.views.get(f"cam{i}")) is not None:  # type: ignore[call-overload]
+            rect = view_crop(rect[2], rect[3], cv, plan.src_w, plan.src_h)
         x, y, cw, ch = rect
         hd = plan.hd_for(cam) if reg.cam_enhance else None
         hq = hd_crop(rect, hd[1]) if hd else None

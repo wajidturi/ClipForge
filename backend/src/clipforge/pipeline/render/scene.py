@@ -118,26 +118,23 @@ CAM_BACKGROUNDS: dict[str, str] = {  # id -> name, in picker order
 BLUR_BACKGROUNDS = {"blur_soft": 10, "blur_strong": 26}  # box blur radius at 1080 wide
 
 
-class Spot(_M):
-    """A panel placed freely in the studio (dragged / resized), as fractions of the
-    video: top-left corner and size. It may reach past the edges (cropped there)."""
+class View(_M):
+    """What a panel shows of the source, set in the studio like a profile picture in
+    its frame: the centre (fractions of the source) and the zoom against the
+    template's own crop (1 = as the template frames it, 2 = twice as close)."""
 
-    x: float = Field(0.0, ge=-0.9, le=0.9)
-    y: float = Field(0.0, ge=-0.9, le=0.9)
-    w: float = Field(1.0, ge=0.1, le=1.5)
-    h: float = Field(1.0, ge=0.1, le=1.5)
+    x: float = Field(0.5, ge=0.0, le=1.0)
+    y: float = Field(0.5, ge=0.0, le=1.0)
+    zoom: float = Field(1.0, ge=0.25, le=6.0)
 
 
-class Place(_M):
-    """Free layout: where the gameplay and the facecam panel sit, overriding the
-    template's arrangement (None = the template's own place)."""
-
-    game: Spot | None = None
-    cam: Spot | None = None
+ViewKey = Literal["game", "cam0", "cam1", "cam2"]
 
 
 class Regions(_M):
-    place: Place | None = None  # free layout from the studio (drag to move / resize)
+    # crop & zoom inside the panels (studio: drag the picture, scroll to zoom);
+    # missing = the template's automatic framing
+    views: dict[ViewKey, View] = Field(default_factory=dict)
     split: float = Field(0.42, ge=0.25, le=0.75)  # height share of the top panel
     frame: Frame = Field(default_factory=Frame)
     cam: Cam = Field(default_factory=Cam)
@@ -810,24 +807,7 @@ def panels(scene: Scene) -> dict[str, Rect]:
             out["cam"] = Rect(
                 round(r.cam.x * W - side / 2), round(r.cam.y * H - side / 2), side, side
             )
-    pl = r.place
-    if pl is not None:  # moved / resized in the studio
-        if pl.game is not None:
-            out["game"] = spot_rect(pl.game, W, H)
-        # the floating cam has its own position (regions.cam)
-        if pl.cam is not None and "cam" in out and t != "floating_facecam":
-            out["cam"] = spot_rect(pl.cam, W, H)
     return out
-
-
-def spot_rect(sp: Spot, w: int, h: int) -> Rect:
-    return Rect(round(sp.x * w), round(sp.y * h), max(16, even(sp.w * w)), max(16, even(sp.h * h)))
-
-
-def free_layout(scene: Scene) -> bool:
-    """Has the user moved a panel? (the template's divider no longer fits then)"""
-    pl = scene.regions.place
-    return pl is not None and (pl.game is not None or pl.cam is not None)
 
 
 TILE_GAP = 8  # px between people sharing the facecam panel
@@ -848,6 +828,23 @@ def cam_tiles(rect: Rect, n: int, gap: int = TILE_GAP) -> list[Rect]:
     out = [Rect(rect.x + i * (w + gap), rect.y, w, rect.h) for i in range(n - 1)]
     last_x = rect.x + (n - 1) * (w + gap)
     return [*out, Rect(last_x, rect.y, even(rect.x + rect.w - last_x), rect.h)]
+
+
+def view_crop(
+    w0: float, h0: float, view: View, src_w: int, src_h: int, min_zoom: float = 0.25
+) -> tuple[int, int, int, int]:
+    """Source crop (x, y, w, h px) for a panel the user framed: the template's crop
+    size (w0 x h0) divided by the zoom, centred on the view, kept inside the source
+    (the shape never changes, so the panel is always filled)."""
+    z = max(min_zoom, view.zoom)
+    w, h = w0 / z, h0 / z
+    if w > src_w:
+        w, h = src_w, src_w * h0 / w0
+    if h > src_h:
+        w, h = src_h * w0 / h0, src_h
+    x = min(max(view.x * src_w - w / 2, 0), src_w - w)
+    y = min(max(view.y * src_h - h / 2, 0), src_h - h)
+    return int(x), int(y), even(w), even(h)
 
 
 def cover_crop(

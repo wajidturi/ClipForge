@@ -34,7 +34,7 @@ from clipforge.db.models import MediaAsset
 from clipforge.db.session import get_sessionmaker
 from clipforge.jobs.registry import JobContext
 from clipforge.pipeline.render import camhd, compose, matte, reframe
-from clipforge.pipeline.render.edl import CaptionWord, build_edl, keyed_words
+from clipforge.pipeline.render.edl import CaptionWord, Edl, Span, build_edl, keyed_words
 from clipforge.pipeline.render.effects import audio_chain, measure_loudness, pick_peaks
 from clipforge.pipeline.render.reframe import Box
 from clipforge.pipeline.render.scene_render import CutPlan
@@ -150,10 +150,18 @@ def find_reaction(words: list[CaptionWord], near: float | None) -> str | None:
     return phrase.upper().replace("LETS", "LET'S") + "!"
 
 
+def cut_edl(info: dict[str, Any], start: float, end: float) -> Edl:
+    """What of [start, end] the Short shows. A range the user typed (Custom) is kept
+    whole, second for second; picked moments lose dead air and filler words."""
+    if info.get("exact"):
+        return Edl((Span(start, end),))
+    return build_edl(info["words"], start, end)
+
+
 def ensure_cut(job: JobContext, info: dict[str, Any], start: float, end: float) -> Cut:
     short_id = info["short"]["id"]
     source_id = info["short"]["source_id"]
-    edl = build_edl(info["words"], start, end)
+    edl = cut_edl(info, start, end)
     key = cut_key(source_id, start, end, edl.to_json())
     if (hit := load_cut(short_id, key)) is not None:
         job.progress(40, "reusing the prepared cut")

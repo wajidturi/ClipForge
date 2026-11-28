@@ -68,6 +68,67 @@ function BgSwatch({ id }: { id: string }) {
   )
 }
 
+// ------------------------------------------------------------------ crop & zoom
+const FRAME = '__frame:'
+
+/** Crop & zoom inside the fixed video frames (regions.views): which part of the
+ * source each frame shows. Drag / scroll in the preview; zoom and reset here. */
+function CropSection({ e }: { e: Edit }) {
+  const { t } = useTranslation()
+  const views = (e.scene.regions.views ?? {}) as Record<string, { zoom: number } | undefined>
+  const key = e.selected?.startsWith(FRAME) ? e.selected.slice(FRAME.length) : null
+  const any = Object.keys(views).length > 0
+  const resetAll = () => e.update((s) => ({ ...s, regions: { ...s.regions, views: {} } }))
+  const reset = (k: string) =>
+    e.update((s) => {
+      const v = { ...s.regions.views } as Record<string, unknown>
+      delete v[k]
+      return { ...s, regions: { ...s.regions, views: v as typeof s.regions.views } }
+    })
+  return (
+    <Section
+      title={t('cz.crop.title')}
+      action={
+        any ? (
+          <button type="button" className="text-xs text-accent hover:underline" onClick={resetAll}>
+            {t('cz.crop.resetAll')}
+          </button>
+        ) : null
+      }
+    >
+      <p className="text-xs text-muted">{t('cz.crop.help')}</p>
+      {key && (
+        <>
+          <p className="text-xs font-medium">
+            {key === 'game' ? t('cz.crop.game') : t('cz.crop.cam', { n: Number(key.slice(3)) + 1 })}
+          </p>
+          <Row label={t('cz.crop.zoom')}>
+            <Slider
+              label={t('cz.crop.zoom')}
+              value={views[key]?.zoom ?? 1}
+              min={key === 'game' ? 1 : 0.25}
+              max={6}
+              step={0.01}
+              format={(v) => `${v.toFixed(2)}×`}
+              onChange={(v) => e.zoomFrame?.(key, v, true)}
+              onCommit={e.commit}
+            />
+          </Row>
+          {views[key] && (
+            <button
+              type="button"
+              className="text-xs text-accent hover:underline"
+              onClick={() => reset(key)}
+            >
+              {t('cz.crop.reset')}
+            </button>
+          )}
+        </>
+      )}
+    </Section>
+  )
+}
+
 // ------------------------------------------------------------------ template
 export function TemplatePanel({ e }: { e: Edit }) {
   const { t } = useTranslation()
@@ -88,23 +149,8 @@ export function TemplatePanel({ e }: { e: Edit }) {
           limits={e.canvasLimits}
         />
       </Section>
-      <Section
-        title={t('cz.tpl.free')}
-        action={
-          r.place ? (
-            <button
-              type="button"
-              className="text-xs text-accent hover:underline"
-              onClick={() => setRegions(e, { place: null })}
-            >
-              {t('cz.tpl.freeReset')}
-            </button>
-          ) : null
-        }
-      >
-        <p className="text-xs text-muted">{t('cz.tpl.freeHelp')}</p>
-      </Section>
-      {stacked && !r.place && (
+      <CropSection e={e} />
+      {stacked && (
         <Section title={t('cz.tpl.layout')}>
           <Row label={t(`cz.tpl.${wide ? 'splitWide' : 'split'}.${s.template}`)}>
             <Slider
@@ -131,7 +177,30 @@ export function TemplatePanel({ e }: { e: Edit }) {
             />
           }
         >
-          <p className="text-[11px] text-muted">{t('cz.tpl.camDrag')}</p>
+          <Row label={t('cz.tpl.camX')}>
+            <Slider
+              label={t('cz.tpl.camX')}
+              value={r.cam.x}
+              min={0}
+              max={1}
+              step={0.01}
+              format={pct}
+              onChange={(v) => setCam(e, { x: v }, true)}
+              onCommit={e.commit}
+            />
+          </Row>
+          <Row label={t('cz.tpl.camY')}>
+            <Slider
+              label={t('cz.tpl.camY')}
+              value={r.cam.y}
+              min={0}
+              max={1}
+              step={0.01}
+              format={pct}
+              onChange={(v) => setCam(e, { y: v }, true)}
+              onCommit={e.commit}
+            />
+          </Row>
           <Row label={t('cz.tpl.size')}>
             <Slider
               label={t('cz.tpl.size')}
